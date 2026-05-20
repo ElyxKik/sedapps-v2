@@ -1,0 +1,109 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  core-api:
+    build: ./services/core-api
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    ports: ["8000:8000"]
+    volumes:
+      - ./services/core-api:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  ai-orchestrator:
+    build: ./services/ai-orchestrator
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    ports: ["8001:8001"]
+    volumes:
+      - ./services/ai-orchestrator:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+  ai-worker:
+    build: ./services/ai-orchestrator
+    env_file: .env
+    depends_on:
+      redis:    { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    volumes:
+      - ./services/ai-orchestrator:/app
+    command: celery -A app.celery_app.celery worker --loglevel=INFO --concurrency=2
+
+  deploy-service:
+    build: ./services/deploy-service
+    env_file: .env
+    depends_on:
+      redis: { condition: service_healthy }
+    ports: ["8002:8002"]
+    volumes:
+      - ./services/deploy-service:/app
+      - ./apps:/workspace/apps:ro
+      - ./packages:/workspace/packages:ro
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+
+  deploy-worker:
+    build: ./services/deploy-service
+    env_file: .env
+    depends_on:
+      redis: { condition: service_healthy }
+    volumes:
+      - ./services/deploy-service:/app
+      - ./apps:/workspace/apps:ro
+      - ./packages:/workspace/packages:ro
+    command: celery -A app.celery_app.celery worker --loglevel=INFO --concurrency=1 -Q celery
+
+  inbox-service:
+    build: ./services/inbox-service
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["8003:8003"]
+    volumes:
+      - ./services/inbox-service:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8003 --reload
+
+  analytics-service:
+    build: ./services/analytics-service
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["8004:8004"]
+    volumes:
+      - ./services/analytics-service:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8004 --reload
+
+  flower:
+    image: mher/flower:2.0
+    environment:
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+    ports: ["5555:5555"]
+    depends_on:
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:
