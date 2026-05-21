@@ -35,7 +35,9 @@ def prepare_workspace(deployment_id: str, payload: dict[str, Any], site_url: str
         shutil.rmtree(target)
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    shutil.copytree(settings.WEB_RENDERER_SOURCE, target, ignore=shutil.ignore_patterns("node_modules", ".next", "out"))
+    source = settings.WEB_RENDERER_SOURCE
+    ignore = shutil.ignore_patterns("node_modules", ".next", "out")
+    shutil.copytree(source, target, ignore=ignore)
 
     packages_dir = target.parent / f"{deployment_id}-packages" / "page-schema"
     if packages_dir.exists():

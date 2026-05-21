@@ -60,6 +60,7 @@ class OnboardingIn(BaseModel):
 class GenerateIn(BaseModel):
     force: bool = False
     locale: str = "fr"
+    render_mode: str = "static_classic"  # "static_classic" | "astro"
 
 
 class DeployIn(BaseModel):

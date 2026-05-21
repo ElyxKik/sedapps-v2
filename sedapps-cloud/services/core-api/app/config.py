@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     DEPLOY_SERVICE_URL: str = "http://deploy-service:8002"
     INTERNAL_API_TOKEN: str = "change-me-internal-token"
 
+    # OVH Domain purchasing API credentials
+    OVH_APP_KEY: str = ""
+    OVH_APP_SECRET: str = ""
+    OVH_CONSUMER_KEY: str = ""
+    OVH_ENDPOINT: str = "ovh-eu"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

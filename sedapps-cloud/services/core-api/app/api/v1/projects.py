@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_current_org_db
@@ -21,6 +21,7 @@ from app.schemas.project import (
 )
 from app.services.deploy_client import DeployClient
 from app.services.orchestrator_client import OrchestratorClient
+from app.services.ovh_client import OvhClient
 from app.services.slug import unique_global_slug
 
 router = APIRouter()
@@ -65,6 +66,31 @@ def get_project(project_id: uuid.UUID, db: Session = Depends(get_current_org_db)
     return ProjectOut.model_validate(_get_owned_project(db, project_id))
 
 
+@router.delete("/{project_id}", status_code=204, response_class=Response)
+def delete_project(project_id: uuid.UUID, db: Session = Depends(get_current_org_db)) -> Response:
+    project = _get_owned_project(db, project_id)
+    db.delete(project)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.get("/check-domain/verify")
+def check_domain_availability(
+    domain: str,
+    db: Session = Depends(get_current_org_db),
+) -> dict[str, bool]:
+    """
+    Check if a domain is available via the OVH API.
+    Returns: {"available": true|false}
+    """
+    if not domain or not domain.strip():
+        return {"available": True}
+    
+    client = OvhClient()
+    available = client.is_domain_available(domain.strip().lower())
+    return {"available": available}
+
+
 @router.post("/{project_id}/onboarding", response_model=ProjectOut)
 def save_onboarding(
     project_id: uuid.UUID,
@@ -74,6 +100,7 @@ def save_onboarding(
     project = _get_owned_project(db, project_id)
     project.brief = body.model_dump()
     project.sector = body.sector or project.sector
+    project.custom_domain = body.custom_domain or project.custom_domain
     db.commit()
     db.refresh(project)
     return ProjectOut.model_validate(project)

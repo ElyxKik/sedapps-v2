@@ -21,6 +21,7 @@ class ProjectOut(BaseModel):
     status: ProjectStatus
     brief: dict[str, Any]
     design_tokens: dict[str, Any]
+    custom_domain: str | None
 
     model_config = {"from_attributes": True}
 
@@ -47,6 +48,7 @@ class OnboardingIn(BaseModel):
     social: dict[str, str] = Field(default_factory=dict)
     objectives: list[str] = Field(default_factory=list)
     has_blog: bool = False
+    custom_domain: str | None = None
 
 
 class GenerateIn(BaseModel):

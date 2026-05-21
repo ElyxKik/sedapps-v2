@@ -17,6 +17,7 @@ from sqlalchemy import text as _sa_text
 from sqlalchemy.orm import Session
 
 from app.llm_site_generator import generate_llm_site_payload, generate_project_plan, generate_site_single_shot
+from app.astro_site_generator import generate_astro_site_payload
 from app.config import settings
 from app.database import Base, engine, get_db
 from app.models import AiJob, Article, Comment, FormSubmission, MediaAsset, Project, User
@@ -379,7 +380,11 @@ def _run_generation_job(job_id: str, project_id: str, brief: dict) -> None:
         if not job or not project:
             return
         try:
-            agents, output, sections, files = generate_llm_site_payload(brief, on_progress=_push_event)
+            mode = (job.input or {}).get("render_mode") or "static_classic"
+            if mode == "astro":
+                agents, output, sections, files = generate_astro_site_payload(brief, on_progress=_push_event)
+            else:
+                agents, output, sections, files = generate_llm_site_payload(brief, on_progress=_push_event)
             job.status = "success"
             job.agents = agents
             job.output = output
@@ -414,7 +419,7 @@ def generate_site(project_id: str, body: GenerateIn, background_tasks: Backgroun
         project_id=project.id,
         workflow="site_generation",
         status="running",
-        input={"brief": project.brief, "locale": body.locale},
+        input={"brief": project.brief, "locale": body.locale, "render_mode": body.render_mode},
         started_at=datetime.utcnow(),
     )
     db.add(job)

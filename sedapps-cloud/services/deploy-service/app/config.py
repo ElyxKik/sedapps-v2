@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     DEPLOY_PUBLIC_BASE_URL: str = "https://sedapps.cloud"
     DEPLOY_WORK_DIR: str = "/tmp/sedapps-deploys"
     WEB_RENDERER_SOURCE: str = Field(default="/workspace/apps/web-renderer")
+    ASTRO_RENDERER_SOURCE: str = Field(default="/workspace/apps/astro-renderer")
     PAGE_SCHEMA_SOURCE: str = Field(default="/workspace/packages/page-schema")
+    DEFAULT_RENDERER: str = "next"  # "next" | "astro"
 
     NEXT_PUBLIC_INBOX_URL: str = ""
     NEXT_PUBLIC_ANALYTICS_URL: str = ""

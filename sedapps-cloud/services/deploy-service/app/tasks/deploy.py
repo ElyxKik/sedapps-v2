@@ -38,7 +38,7 @@ def deploy_site(self, body: dict[str, Any]) -> dict[str, Any]:
 
     core.deployment_update(deployment_id, {"status": "building", "domain": domain})
     try:
-        log.info("deployment %s prepare workspace", deployment_id)
+        log.info("deployment %s prepare workspace (next/static)", deployment_id)
         workdir = prepare_workspace(deployment_id, payload, site_url)
 
         log.info("deployment %s build static site", deployment_id)

@@ -36,3 +36,4 @@ class Project(UUIDPKMixin, TimestampMixin, Base):
     )
     brief: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     design_tokens: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    custom_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
