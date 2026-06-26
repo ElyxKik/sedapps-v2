@@ -777,10 +777,11 @@ def edit_chat(
 
 
 @app.delete("/v1/projects/{project_id}", status_code=204, tags=["projects"])
-def delete_project(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> None:
+def delete_project(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Response:
     project = get_project_or_404(project_id, user, db)
     db.delete(project)
     db.commit()
+    return Response(status_code=204)
 
 
 @app.post("/v1/projects/{project_id}/onboarding", response_model=ProjectOut, tags=["projects"])
@@ -1328,13 +1329,14 @@ def update_article(project_id: str, article_id: str, body: ArticleUpdate, user: 
 
 
 @app.delete("/v1/projects/{project_id}/articles/{article_id}", status_code=204, tags=["cms"])
-def delete_article(project_id: str, article_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> None:
+def delete_article(project_id: str, article_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Response:
     project = get_project_or_404(project_id, user, db)
     article = db.get(Article, article_id)
     if not article or article.project_id != project.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="article not found")
     db.delete(article)
     db.commit()
+    return Response(status_code=204)
 
 
 # ===== Forms / Comments / Media =====
