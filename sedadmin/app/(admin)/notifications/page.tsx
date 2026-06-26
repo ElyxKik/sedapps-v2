@@ -38,7 +38,7 @@ export default function NotificationsPage() {
           <select
             value={form.target}
             onChange={e => setForm(f => ({ ...f, target: e.target.value }))}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-sala-primary/60"
           >
             <option value="all">Tous les utilisateurs</option>
             <option value="active">Abonnés actifs</option>
@@ -53,7 +53,7 @@ export default function NotificationsPage() {
             value={form.title}
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
             placeholder="Titre de la notification"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-sala-primary/60"
             required
           />
         </div>
@@ -65,7 +65,7 @@ export default function NotificationsPage() {
             onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
             placeholder="Contenu du message…"
             rows={4}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500/50 resize-none"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-sala-primary/60 resize-none"
             required
           />
         </div>
@@ -79,7 +79,7 @@ export default function NotificationsPage() {
         <button
           type="submit"
           disabled={sending}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-semibold text-sm transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-sala-primary hover:bg-sala-primary-light disabled:opacity-40 text-white font-semibold text-sm transition-colors"
         >
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           Envoyer

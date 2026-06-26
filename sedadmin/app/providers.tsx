@@ -8,10 +8,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true)
     
-    // Get theme from localStorage or system preference
+    // Get theme from localStorage — default to dark (admin dashboard is dark-first)
     const storedTheme = localStorage.getItem('theme')
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const isDark = storedTheme === 'dark' || (storedTheme === null && prefersDark)
+    const isDark = storedTheme !== 'light' // default dark unless explicitly light
 
     // Apply theme
     const html = document.documentElement

@@ -58,8 +58,8 @@ export default async function DashboardPage() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Vue d'ensemble</h1>
-        <p className="text-white/40 text-sm mt-1">Tableau de bord administrateur SedApps</p>
+        <h1 className="text-2xl font-bold text-white tracking-tight">Vue d'ensemble</h1>
+        <p className="text-white/40 text-sm mt-1">Tableau de bord administrateur Sala AI</p>
       </div>
 
       {/* Stats */}
@@ -69,25 +69,25 @@ export default async function DashboardPage() {
           value={stats.totalUsers}
           sub={`+${stats.newUsersThisMonth} ce mois`}
           icon={Users}
-          color="bg-blue-600"
+          color="bg-sala-primary"
         />
         <StatCard
           label="Projets"
           value={stats.totalProjects}
           icon={FolderKanban}
-          color="bg-violet-600"
+          color="bg-sala-sky"
         />
         <StatCard
           label="Domaines"
           value={stats.totalDomains}
           icon={Globe}
-          color="bg-emerald-600"
+          color="bg-sala-success"
         />
         <StatCard
           label="Abonnements actifs"
           value={stats.totalSubs}
           icon={CreditCard}
-          color="bg-orange-600"
+          color="bg-sala-warning"
         />
       </div>
 
@@ -97,17 +97,17 @@ export default async function DashboardPage() {
         <div className="glass rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <Users className="w-4 h-4 text-blue-400" />
+              <Users className="w-4 h-4 text-sala-primary-light" />
               Derniers inscrits
             </h2>
-            <a href="/users" className="text-xs text-violet-400 hover:text-violet-300">Voir tout →</a>
+            <a href="/users" className="text-xs text-sala-primary-light hover:text-sala-sky">Voir tout →</a>
           </div>
           <div className="space-y-2">
             {stats.recentUsers.length === 0 && <p className="text-white/30 text-xs">Aucun utilisateur</p>}
             {stats.recentUsers.map((u: any) => (
               <div key={u.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-violet-600/30 flex items-center justify-center text-xs text-violet-300 font-bold">
+                  <div className="w-7 h-7 rounded-full bg-sala-primary/25 flex items-center justify-center text-xs text-sala-primary-light font-bold">
                     {u.id?.slice(0, 1).toUpperCase()}
                   </div>
                   <span className="text-xs text-white/70 font-mono">{u.id?.slice(0, 12)}…</span>
@@ -122,17 +122,17 @@ export default async function DashboardPage() {
         <div className="glass rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-              <FolderKanban className="w-4 h-4 text-violet-400" />
+              <FolderKanban className="w-4 h-4 text-sala-sky" />
               Derniers projets
             </h2>
-            <a href="/projects" className="text-xs text-violet-400 hover:text-violet-300">Voir tout →</a>
+            <a href="/projects" className="text-xs text-sala-primary-light hover:text-sala-sky">Voir tout →</a>
           </div>
           <div className="space-y-2">
             {stats.recentProjects.length === 0 && <p className="text-white/30 text-xs">Aucun projet</p>}
             {stats.recentProjects.map((p: any) => (
               <div key={p.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
                 <span className="text-xs text-white/70 font-mono">{p.id?.slice(0, 16)}…</span>
-                <span className={`badge ${p.status === 'live' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-white/5 text-white/30'}`}>
+                <span className={`badge ${p.status === 'live' ? 'bg-sala-success/15 text-sala-success' : 'bg-white/5 text-white/30'}`}>
                   {p.status ?? 'draft'}
                 </span>
               </div>

@@ -45,7 +45,7 @@ export default function SettingsPage() {
             value={mainAppUrl}
             onChange={e => setMainAppUrl(e.target.value)}
             placeholder="http://localhost:3000"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-sala-primary/60"
           />
           <p className="text-white/25 text-xs mt-1">Variable : NEXT_PUBLIC_MAIN_APP_URL</p>
         </div>
@@ -57,13 +57,13 @@ export default function SettingsPage() {
             value={adminSecret}
             onChange={e => setAdminSecret(e.target.value)}
             placeholder="••••••••"
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-sala-primary/60"
           />
           <p className="text-white/25 text-xs mt-1">Variable : ADMIN_SECRET</p>
         </div>
 
         {status && (
-          <div className={`flex items-start gap-2 px-4 py-3 rounded-xl text-sm ${status.type === 'success' ? 'bg-blue-500/10 text-blue-300' : 'bg-red-500/10 text-red-400'}`}>
+          <div className={`flex items-start gap-2 px-4 py-3 rounded-xl text-sm ${status.type === 'success' ? 'bg-blue-500/10 text-sala-sky' : 'bg-red-500/10 text-red-400'}`}>
             <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             {status.msg}
           </div>
@@ -72,7 +72,7 @@ export default function SettingsPage() {
         <button
           type="submit"
           disabled={saving}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-semibold text-sm transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-sala-primary hover:bg-sala-primary-light disabled:opacity-40 text-white font-semibold text-sm transition-colors"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           Enregistrer
@@ -89,9 +89,11 @@ export default function SettingsPage() {
             ['SUPABASE_SERVICE_ROLE_KEY', 'Clé service Supabase (admin)'],
             ['ADMIN_SECRET', 'Mot de passe d\'accès au dashboard'],
             ['NEXT_PUBLIC_MAIN_APP_URL', 'URL de l\'app principale'],
+            ['SEDAPPS_BACKEND_URL', 'URL du backend FastAPI (ex: http://localhost:8000)'],
+            ['SEDAPPS_ADMIN_SECRET', 'Secret admin pour endpoints backend (doit correspondre à SEDAPPS_ADMIN_SECRET côté backend)'],
           ].map(([key, desc]) => (
             <div key={key} className="flex items-center justify-between gap-4">
-              <code className="text-violet-300">{key}</code>
+              <code className="text-sala-primary-light">{key}</code>
               <span className="text-white/30">{desc}</span>
             </div>
           ))}

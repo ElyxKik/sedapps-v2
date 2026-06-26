@@ -169,7 +169,7 @@ export default function CreditsAdminPage() {
                     <td className="px-6 py-4 text-center">
                       <button
                         onClick={() => setSelectedUser(user)}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors"
+                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-sala-primary hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors"
                       >
                         <Plus className="w-4 h-4" />
                         Ajouter
@@ -245,7 +245,7 @@ export default function CreditsAdminPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 bg-sala-primary hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                   disabled={submitting || !creditsToAdd}
                 >
                   {submitting ? (

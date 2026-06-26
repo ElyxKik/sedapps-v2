@@ -2,57 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
 * {
   box-sizing: border-box;
 }
 
-/* Dark mode (default) */
+/* Dark mode (default) — Sala AI dark navy */
 html {
-  background: #0a0a0f;
+  background: #0B0F1A;
   color: #e2e8f0;
 }
 
 body {
-  background: #0a0a0f;
+  background: #0B0F1A;
   color: #e2e8f0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 /* Light mode */
 html:not(.dark) {
-  background: #ffffff;
-  color: #1f2937;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 html:not(.dark) body {
-  background: #ffffff;
-  color: #1f2937;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+::-webkit-scrollbar-thumb { background: rgba(37,99,235,0.2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(37,99,235,0.4); }
 
-.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
-.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+.dark ::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.2); }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.4); }
 
 .glass {
-  background: rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.08);
   backdrop-filter: blur(12px);
 }
 
 .dark .glass {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(17,24,39,0.6);
+  border: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(16px);
 }
 
 html:not(.dark) .glass {
-  background: rgba(0,0,0,0.04);
-  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(255,255,255,0.8);
+  border: 1px solid rgba(0,0,0,0.06);
+  backdrop-filter: blur(12px);
 }
 
 .badge {
   @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+}
+
+.sala-gradient {
+  background: linear-gradient(135deg, #2563EB 0%, #3B82F6 50%, #22D3EE 100%);
+}
+
+.sala-glow {
+  box-shadow: 0 0 24px rgba(37,99,235,0.15);
 }

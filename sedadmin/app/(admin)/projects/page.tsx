@@ -28,7 +28,7 @@ function getPreviewUrl(p: Project) {
 
 const STACK_COLORS: Record<string, string> = {
   wordpress: 'bg-emerald-500/15 text-emerald-400',
-  code: 'bg-blue-500/15 text-blue-400',
+  code: 'bg-blue-500/15 text-sala-sky',
 }
 const STATUS_COLORS: Record<string, string> = {
   live: 'bg-emerald-500/15 text-emerald-400',
@@ -69,7 +69,7 @@ export default function ProjectsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <FolderKanban className="w-6 h-6 text-violet-400" />
+            <FolderKanban className="w-6 h-6 text-sala-primary-light" />
             Projets
           </h1>
           <p className="text-white/40 text-sm mt-1">{projects.length} projets enregistrés</p>
@@ -87,7 +87,7 @@ export default function ProjectsPage() {
           placeholder="Rechercher par nom, domaine, user ID..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-violet-500/50"
+          className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-sala-primary/60"
         />
       </div>
 
@@ -150,7 +150,7 @@ export default function ProjectsPage() {
                     <a
                       href={getViewerUrl(p)}
                       target="_blank" rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg text-white/20 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                      className="p-1.5 rounded-lg text-white/20 hover:text-sala-sky hover:bg-sala-sky/10 transition-colors"
                       title="Ouvrir dans le builder"
                     >
                       <Code2 className="w-3.5 h-3.5" />

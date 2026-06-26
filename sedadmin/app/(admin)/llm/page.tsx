@@ -107,7 +107,7 @@ export default function LLMPage() {
     <div className="p-8 max-w-2xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Bot className="w-6 h-6 text-violet-400" />
+          <Bot className="w-6 h-6 text-sala-primary-light" />
           Configuration LLM
         </h1>
         <p className="text-white/40 text-sm mt-1">Provider IA utilisé par SedAI dans le builder</p>
@@ -120,7 +120,7 @@ export default function LLMPage() {
           <div className="relative">
             <button
               onClick={() => setShowPresets(!showPresets)}
-              className="w-full flex items-center justify-between px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white hover:border-violet-500/50 transition-colors"
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white hover:border-sala-primary/60 transition-colors"
             >
               <span>{PRESETS.find(p => p.baseUrl === form.baseUrl && p.model === form.model)?.label ?? 'Sélectionner un preset…'}</span>
               <ChevronDown className={`w-4 h-4 text-white/40 transition-transform ${showPresets ? 'rotate-180' : ''}`} />
@@ -148,7 +148,7 @@ export default function LLMPage() {
             <input
               value={form.provider}
               onChange={e => setForm(f => ({ ...f, provider: e.target.value }))}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500/50"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-sala-primary/60"
               placeholder="deepseek"
             />
           </div>
@@ -157,7 +157,7 @@ export default function LLMPage() {
             <input
               value={form.model}
               onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500/50"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-sala-primary/60"
               placeholder="deepseek-chat"
             />
           </div>
@@ -168,7 +168,7 @@ export default function LLMPage() {
           <input
             value={form.baseUrl}
             onChange={e => setForm(f => ({ ...f, baseUrl: e.target.value }))}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500/50"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-sala-primary/60"
             placeholder="https://api.deepseek.com/v1"
           />
         </div>
@@ -179,7 +179,7 @@ export default function LLMPage() {
             type="password"
             value={form.apiKey}
             onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500/50 font-mono"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-sala-primary/60 font-mono"
             placeholder="sk-…"
           />
           <p className="text-xs text-white/25 mt-1">Laissez vide pour conserver la clé existante</p>
@@ -192,7 +192,7 @@ export default function LLMPage() {
               type="range" min="0" max="2" step="0.05"
               value={form.temperature}
               onChange={e => setForm(f => ({ ...f, temperature: parseFloat(e.target.value) }))}
-              className="w-full accent-violet-500"
+              className="w-full accent-sala-primary"
             />
           </div>
           <div>
@@ -201,7 +201,7 @@ export default function LLMPage() {
               type="number"
               value={form.maxTokens}
               onChange={e => setForm(f => ({ ...f, maxTokens: parseInt(e.target.value) || 8192 }))}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-violet-500/50"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-sala-primary/60"
             />
           </div>
         </div>
@@ -210,7 +210,7 @@ export default function LLMPage() {
           <label className="text-sm text-white/60">Format Anthropic Messages API</label>
           <button
             onClick={() => setForm(f => ({ ...f, isAnthropic: !f.isAnthropic }))}
-            className={`relative w-10 h-5 rounded-full transition-colors ${form.isAnthropic ? 'bg-violet-600' : 'bg-white/10'}`}
+            className={`relative w-10 h-5 rounded-full transition-colors ${form.isAnthropic ? 'bg-sala-primary' : 'bg-white/10'}`}
           >
             <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${form.isAnthropic ? 'translate-x-5' : 'translate-x-0.5'}`} />
           </button>
@@ -227,7 +227,7 @@ export default function LLMPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-semibold text-sm transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-sala-primary hover:bg-sala-primary-light disabled:opacity-40 text-white font-semibold text-sm transition-colors"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Sauvegarder
@@ -245,8 +245,8 @@ export default function LLMPage() {
       {/* Current config summary */}
       <div className="glass rounded-2xl p-4 mt-4 text-xs font-mono text-white/40 space-y-1">
         <p className="text-white/60 font-sans text-xs font-semibold mb-2">Config active</p>
-        <p>Provider : <span className="text-violet-300">{form.provider}</span></p>
-        <p>URL : <span className="text-blue-300">{form.baseUrl}</span></p>
+        <p>Provider : <span className="text-sala-primary-light">{form.provider}</span></p>
+        <p>URL : <span className="text-sala-sky">{form.baseUrl}</span></p>
         <p>Modèle : <span className="text-emerald-300">{form.model}</span></p>
         <p>Format : <span className="text-white/60">{form.isAnthropic ? 'Anthropic Messages API' : 'OpenAI-compatible'}</span></p>
       </div>

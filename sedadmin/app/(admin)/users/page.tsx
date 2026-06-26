@@ -56,7 +56,7 @@ export default function UsersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Users className="w-6 h-6 text-blue-400" />
+            <Users className="w-6 h-6 text-sala-sky" />
             Utilisateurs
           </h1>
           <p className="text-white/40 text-sm mt-1">{users.length} comptes enregistrés</p>
@@ -75,7 +75,7 @@ export default function UsersPage() {
           placeholder="Rechercher par email ou ID..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-violet-500/50"
+          className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-sala-primary/60"
         />
       </div>
 
@@ -105,7 +105,7 @@ export default function UsersPage() {
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600/40 to-blue-600/40 flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sala-primary/40 to-sala-sky/40 flex items-center justify-center text-xs font-bold text-white/70 flex-shrink-0">
                         {u.email?.[0]?.toUpperCase() ?? '?'}
                       </div>
                       <div>

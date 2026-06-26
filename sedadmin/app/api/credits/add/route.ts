@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { backendRequest } from '@/lib/sedapps-backend'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,27 +12,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Call the add_credits RPC function
-    const { data, error } = await supabaseAdmin.rpc('add_credits', {
-      p_user_id: userId,
-      p_credits: credits,
-      p_type: 'bonus',
-      p_description: description || `Ajout manuel par admin`,
+    const data = await backendRequest('/v1/admin/credits/add', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId,
+        credits,
+        description: description || `Ajout manuel par admin`,
+      }),
     })
 
-    if (error) {
-      console.error('[Credits Admin API] RPC error:', error)
-      return NextResponse.json(
-        { error: `Erreur RPC: ${error.message}` },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      newBalance: data,
-      message: `${credits} crédits ajoutés à l'utilisateur`,
-    })
+    return NextResponse.json(data)
   } catch (err: any) {
     console.error('[Credits Admin API] Error:', err.message)
     return NextResponse.json(

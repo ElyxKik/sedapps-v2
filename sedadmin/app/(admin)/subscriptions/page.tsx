@@ -31,15 +31,15 @@ interface RevenueData {
 
 const STATUS_COLORS: Record<string, string> = {
   active:     'bg-emerald-500/15 text-emerald-400',
-  trialing:   'bg-blue-500/15 text-blue-400',
+  trialing:   'bg-blue-500/15 text-sala-sky',
   past_due:   'bg-yellow-500/15 text-yellow-400',
   canceled:   'bg-red-500/15 text-red-400',
   incomplete: 'bg-white/10 text-white/40',
 }
 
 const PLAN_COLORS: Record<string, string> = {
-  starter:    'bg-blue-500/15 text-blue-300',
-  pro:        'bg-violet-500/15 text-violet-300',
+  starter:    'bg-blue-500/15 text-sala-sky',
+  pro:        'bg-sala-primary/15 text-sala-primary-light',
   business:   'bg-orange-500/15 text-orange-300',
   enterprise: 'bg-emerald-500/15 text-emerald-300',
 }
@@ -195,7 +195,7 @@ export default function SubscriptionsPage() {
           <p className="text-white/40 text-sm mt-1">{data?.counts.total ?? '…'} abonnements au total</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold transition-all">
+          <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sala-primary hover:bg-sala-primary-dark text-white text-sm font-semibold transition-all">
             <Plus className="w-4 h-4" /> Nouvel abonnement
           </button>
           <button onClick={fetchData} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-sm transition-all">
@@ -216,8 +216,8 @@ export default function SubscriptionsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="MRR (actifs)" value={loading ? '…' : fmt(data?.mrr ?? 0)} icon={DollarSign} color="bg-emerald-600" loading={loading}
           sub={data?.mrr_trial ? `+ ${fmt(data.mrr_trial)} en essai` : undefined} />
-        <StatCard label="ARR estimé" value={loading ? '…' : fmt(data?.arr ?? 0)} icon={TrendingUp} color="bg-violet-600" loading={loading} />
-        <StatCard label="Ce mois (Stripe)" value={loading ? '…' : fmt(data?.revenueThisMonth ?? 0)} icon={BarChart2} color="bg-blue-600" loading={loading}
+        <StatCard label="ARR estimé" value={loading ? '…' : fmt(data?.arr ?? 0)} icon={TrendingUp} color="bg-sala-primary" loading={loading} />
+        <StatCard label="Ce mois (Stripe)" value={loading ? '…' : fmt(data?.revenueThisMonth ?? 0)} icon={BarChart2} color="bg-sala-primary" loading={loading}
           sub={growthPct !== null ? `${growthPct >= 0 ? '+' : ''}${growthPct}% vs mois dernier` : undefined} />
         <StatCard label="Solde Stripe" value={loading ? '…' : data?.balance !== null && data?.balance !== undefined ? fmt(data.balance) : 'N/A'} icon={CreditCard} color="bg-orange-600" loading={loading} />
       </div>
@@ -229,7 +229,7 @@ export default function SubscriptionsPage() {
           <div className="space-y-2">
             {[
               { label: 'Actifs', key: 'active', color: 'text-emerald-400', bar: 'bg-emerald-500' },
-              { label: 'En essai', key: 'trialing', color: 'text-blue-400', bar: 'bg-blue-500' },
+              { label: 'En essai', key: 'trialing', color: 'text-sala-sky', bar: 'bg-blue-500' },
               { label: 'Annulés', key: 'canceled', color: 'text-red-400', bar: 'bg-red-500' },
             ].map(({ label, key, color, bar }) => {
               const val = data?.counts[key as keyof typeof data.counts] ?? 0
@@ -291,7 +291,7 @@ export default function SubscriptionsPage() {
           placeholder="Rechercher par user ID, plan, statut, Stripe ID..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-violet-500/50"
+          className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-sala-primary/60"
         />
       </div>
 
@@ -339,14 +339,14 @@ export default function SubscriptionsPage() {
                       {s.stripe_subscription_id && (
                         <a href={`https://dashboard.stripe.com/subscriptions/${s.stripe_subscription_id}`}
                           target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1">
+                          className="text-xs text-sala-primary-light hover:text-sala-primary-light flex items-center gap-1">
                           Sub <ExternalLink className="w-3 h-3" />
                         </a>
                       )}
                       {s.stripe_customer_id && (
                         <a href={`https://dashboard.stripe.com/customers/${s.stripe_customer_id}`}
                           target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                          className="text-xs text-sala-sky hover:text-sala-sky flex items-center gap-1">
                           Client <ExternalLink className="w-3 h-3" />
                         </a>
                       )}
@@ -355,7 +355,7 @@ export default function SubscriptionsPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => openEdit(s)}
-                        className="p-1.5 rounded-lg text-white/40 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                        className="p-1.5 rounded-lg text-white/40 hover:text-sala-sky hover:bg-sala-sky/10 transition-colors"
                         title="Modifier">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -394,7 +394,7 @@ export default function SubscriptionsPage() {
                   onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))}
                   placeholder="UUID de l'utilisateur"
                   disabled={modal === 'edit'}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500/50 disabled:opacity-40 font-mono"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-sala-primary/60 disabled:opacity-40 font-mono"
                 />
               </div>
 
@@ -404,7 +404,7 @@ export default function SubscriptionsPage() {
                   <select
                     value={form.plan}
                     onChange={e => setForm(f => ({ ...f, plan: e.target.value }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500/50"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-sala-primary/60"
                   >
                     {PLANS.map(p => <option key={p} value={p} className="bg-zinc-900 capitalize">{p}</option>)}
                   </select>
@@ -414,7 +414,7 @@ export default function SubscriptionsPage() {
                   <select
                     value={form.status}
                     onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500/50"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-sala-primary/60"
                   >
                     {STATUSES.map(s => <option key={s} value={s} className="bg-zinc-900">{s}</option>)}
                   </select>
@@ -427,7 +427,7 @@ export default function SubscriptionsPage() {
                   type="date"
                   value={form.current_period_end}
                   onChange={e => setForm(f => ({ ...f, current_period_end: e.target.value }))}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500/50"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-sala-primary/60"
                 />
               </div>
 
@@ -438,7 +438,7 @@ export default function SubscriptionsPage() {
                     value={form.stripe_subscription_id}
                     onChange={e => setForm(f => ({ ...f, stripe_subscription_id: e.target.value }))}
                     placeholder="sub_…"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs placeholder-white/20 focus:outline-none focus:border-violet-500/50 font-mono"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs placeholder-white/20 focus:outline-none focus:border-sala-primary/60 font-mono"
                   />
                 </div>
                 <div>
@@ -447,7 +447,7 @@ export default function SubscriptionsPage() {
                     value={form.stripe_customer_id}
                     onChange={e => setForm(f => ({ ...f, stripe_customer_id: e.target.value }))}
                     placeholder="cus_…"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs placeholder-white/20 focus:outline-none focus:border-violet-500/50 font-mono"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs placeholder-white/20 focus:outline-none focus:border-sala-primary/60 font-mono"
                   />
                 </div>
               </div>
@@ -485,7 +485,7 @@ export default function SubscriptionsPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 rounded-xl bg-sala-primary hover:bg-sala-primary-dark text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                 {modal === 'create' ? 'Créer' : 'Enregistrer'}

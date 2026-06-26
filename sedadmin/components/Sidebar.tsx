@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Users, CreditCard, Bot, FolderKanban,
@@ -32,22 +31,22 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-60 flex-shrink-0 flex flex-col h-screen bg-[#111118] border-r border-white/8 sticky top-0">
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-white/8">
+    <aside className="w-64 flex-shrink-0 flex flex-col h-screen bg-sala-surface border-r border-white/6 sticky top-0">
+      {/* Logo + Brand */}
+      <div className="px-5 py-5 border-b border-white/6">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-            <Image
-              src="/logo-sedapps.png"
-              alt="Sedapps Logo"
-              width={32}
-              height={32}
+          <div className="w-9 h-9 rounded-xl bg-sala-primary/15 border border-sala-primary/20 flex items-center justify-center flex-shrink-0 overflow-hidden sala-glow">
+            <img
+              src="/logo-sala-ai.png"
+              alt="Sala AI Logo"
+              width={36}
+              height={36}
               className="w-full h-full object-contain"
             />
           </div>
           <div>
-            <p className="text-sm font-bold text-white">SedAdmin</p>
-            <p className="text-[10px] text-white/30">Administration</p>
+            <p className="text-sm font-bold text-white tracking-tight">Sala AI</p>
+            <p className="text-[10px] text-sala-primary/70 font-medium">Console Admin</p>
           </div>
         </div>
       </div>
@@ -62,7 +61,7 @@ export default function Sidebar() {
               href={href}
               className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                 active
-                  ? 'bg-violet-600/20 text-violet-300 border border-violet-500/20'
+                  ? 'bg-sala-primary/15 text-sala-primary-light border border-sala-primary/20'
                   : 'text-white/50 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -74,7 +73,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-3 border-t border-white/8 space-y-2">
+      <div className="p-3 border-t border-white/6 space-y-2">
         <div className="flex gap-2">
           <ThemeToggle />
           <button

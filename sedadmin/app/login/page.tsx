@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
 export default function LoginPage() {
@@ -30,23 +29,25 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f]">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-sala-bg relative overflow-hidden">
+      {/* Ambient glow */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[480px] h-[480px] bg-sala-primary/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-900/20 overflow-hidden">
-            <Image
-              src="/logo-sedapps.png"
-              alt="Sedapps Logo"
+          <div className="w-16 h-16 rounded-2xl bg-sala-primary/15 border border-sala-primary/20 flex items-center justify-center mx-auto mb-4 sala-glow overflow-hidden">
+            <img
+              src="/logo-sala-ai.png"
+              alt="Sala AI Logo"
               width={64}
               height={64}
               className="w-full h-full object-contain"
             />
           </div>
-          <h1 className="text-2xl font-bold text-white">SedAdmin</h1>
-          <p className="text-white/40 text-sm mt-1">Tableau de bord administrateur</p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Sala AI</h1>
+          <p className="text-sala-primary/70 text-sm mt-1 font-medium">Console Admin</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-4 bg-sala-surface/80 border border-white/10">
           <div>
             <label className="text-xs text-white/50 mb-1.5 block">Clé d'accès</label>
             <div className="relative">
@@ -55,7 +56,7 @@ export default function LoginPage() {
                 value={secret}
                 onChange={e => setSecret(e.target.value)}
                 placeholder="••••••••••••••••"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-violet-500/50 pr-10"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-sala-primary/60 pr-10"
                 autoFocus
               />
               <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">
@@ -69,7 +70,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading || !secret}
-            className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+            className="w-full py-2.5 rounded-xl bg-sala-primary hover:bg-sala-primary-light disabled:opacity-40 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 sala-glow"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Accéder'}
           </button>

@@ -56,7 +56,7 @@ export default function DomainsPage() {
           placeholder="Rechercher un domaine ou project ID..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-violet-500/50"
+          className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-sala-primary/60"
         />
       </div>
 
@@ -88,7 +88,7 @@ export default function DomainsPage() {
                 </td>
                 <td className="px-4 py-3">
                   <a href={`https://${d.domain}`} target="_blank" rel="noopener noreferrer"
-                    className="p-1.5 rounded-lg text-white/20 hover:text-blue-400 hover:bg-blue-500/10 transition-colors inline-flex">
+                    className="p-1.5 rounded-lg text-white/20 hover:text-sala-sky hover:bg-sala-sky/10 transition-colors inline-flex">
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </td>

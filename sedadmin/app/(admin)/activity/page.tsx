@@ -14,9 +14,9 @@ interface LogEntry {
 
 const ACTION_COLORS: Record<string, string> = {
   create: 'bg-emerald-500/15 text-emerald-400',
-  update: 'bg-blue-500/15 text-blue-400',
+  update: 'bg-blue-500/15 text-sala-sky',
   delete: 'bg-red-500/15 text-red-400',
-  deploy: 'bg-violet-500/15 text-violet-400',
+  deploy: 'bg-sala-primary/15 text-sala-primary-light',
   login: 'bg-yellow-500/15 text-yellow-400',
 }
 
@@ -46,7 +46,7 @@ export default function ActivityPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Activity className="w-6 h-6 text-blue-400" />
+            <Activity className="w-6 h-6 text-sala-sky" />
             Journal d'activité
           </h1>
           <p className="text-white/40 text-sm mt-1">Dernières actions sur la plateforme</p>
@@ -64,7 +64,7 @@ export default function ActivityPage() {
           placeholder="Filtrer par action, user, ressource…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-violet-500/50"
+          className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-sala-primary/60"
         />
       </div>
 

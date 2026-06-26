@@ -3,8 +3,8 @@ import './globals.css'
 import { Providers } from './providers'
 
 export const metadata: Metadata = {
-  title: 'SedAdmin — Administration',
-  description: 'Tableau de bord admin SedApps',
+  title: 'Sala AI — Console Admin',
+  description: 'Tableau de bord administrateur Sala AI',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
