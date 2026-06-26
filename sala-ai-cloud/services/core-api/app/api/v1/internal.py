@@ -19,7 +19,7 @@ router = APIRouter()
 
 
 def require_internal(token: str = Header(default="", alias="X-Internal-Token")) -> None:
-    if token != settings.INTERNAL_API_TOKEN:
+    if token != settings.internal_api_token:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "internal only")
 
 

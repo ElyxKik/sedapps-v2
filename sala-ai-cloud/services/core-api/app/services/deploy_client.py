@@ -9,8 +9,8 @@ from app.config import settings
 
 class DeployClient:
     def __init__(self, base_url: str | None = None, token: str | None = None) -> None:
-        self.base_url = base_url or settings.DEPLOY_SERVICE_URL
-        self.token = token or settings.INTERNAL_API_TOKEN
+        self.base_url = base_url or settings.deploy_service_url
+        self.token = token or settings.internal_api_token
 
     async def enqueue_site_deployment(
         self,

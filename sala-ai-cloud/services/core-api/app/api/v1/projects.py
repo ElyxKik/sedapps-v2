@@ -447,7 +447,7 @@ def chat_with_project(
         "et propose un texte ou une valeur prête à appliquer. Pas de markdown lourd."
     )
 
-    if not settings.DEEPSEEK_API_KEY:
+    if not settings.deepseek_api_key:
         last_user = next((m.get("text", "") for m in reversed(messages_in) if m.get("role") == "user"), "")
         return {"message": f"(mode local sans clé DeepSeek) J'ai bien noté ta demande : « {last_user} ». Configure DEEPSEEK_API_KEY pour des réponses IA réelles."}
 
@@ -461,9 +461,9 @@ def chat_with_project(
 
     try:
         response = httpx.post(
-            f"{settings.DEEPSEEK_BASE_URL.rstrip('/')}/chat/completions",
-            headers={"Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
-            json={"model": settings.DEEPSEEK_MODEL, "messages": payload_messages, "temperature": 0.6},
+            f"{settings.deepseek_base_url.rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {settings.deepseek_api_key}", "Content-Type": "application/json"},
+            json={"model": settings.deepseek_model, "messages": payload_messages, "temperature": 0.6},
             timeout=60,
         )
         if response.status_code >= 400:
@@ -694,7 +694,7 @@ def edit_chat(
     if not element_id or not instruction:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "element_id and instruction required")
 
-    if not settings.DEEPSEEK_API_KEY:
+    if not settings.deepseek_api_key:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "DEEPSEEK_API_KEY non configurée")
 
     system_prompt = (
@@ -718,8 +718,8 @@ def edit_chat(
     }
     try:
         response = httpx.post(
-            f"{settings.DEEPSEEK_BASE_URL.rstrip('/')}/chat/completions",
-            headers={"Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
+            f"{settings.deepseek_base_url.rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {settings.deepseek_api_key}", "Content-Type": "application/json"},
             json={
                 "model": "deepseek-chat",
                 "messages": [

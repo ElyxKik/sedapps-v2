@@ -9,8 +9,8 @@ class OrchestratorClient:
     """Thin async HTTP client to talk to the ai-orchestrator service."""
 
     def __init__(self, base_url: str | None = None, token: str | None = None) -> None:
-        self.base_url = base_url or settings.AI_ORCHESTRATOR_URL
-        self.token = token or settings.INTERNAL_API_TOKEN
+        self.base_url = base_url or settings.ai_orchestrator_url
+        self.token = token or settings.internal_api_token
 
     async def enqueue_site_generation(
         self, *, job_id: str, project_id: str, tenant_id: str, brief: dict, locale: str = "fr"

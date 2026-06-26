@@ -12,16 +12,16 @@ class OvhClient:
 
     def __init__(self) -> None:
         self.enabled = bool(
-            settings.OVH_APP_KEY and settings.OVH_APP_SECRET and settings.OVH_CONSUMER_KEY
+            settings.ovh_app_key and settings.ovh_app_secret and settings.ovh_consumer_key
         )
         self._client = None
         if self.enabled:
             try:
                 self._client = ovh.Client(
-                    endpoint=settings.OVH_ENDPOINT,
-                    application_key=settings.OVH_APP_KEY,
-                    application_secret=settings.OVH_APP_SECRET,
-                    consumer_key=settings.OVH_CONSUMER_KEY,
+                    endpoint=settings.ovh_endpoint,
+                    application_key=settings.ovh_app_key,
+                    application_secret=settings.ovh_app_secret,
+                    consumer_key=settings.ovh_consumer_key,
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize OVH client: {e}")

@@ -12,8 +12,8 @@ TokenType = Literal["access", "refresh"]
 
 def _exp(token_type: TokenType) -> datetime:
     if token_type == "access":
-        return datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_MINUTES)
-    return datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_DAYS)
+        return datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expires_min)
+    return datetime.now(timezone.utc) + timedelta(days=30)
 
 
 def create_token(sub: str, token_type: TokenType, extra: dict[str, Any] | None = None) -> str:
@@ -24,8 +24,8 @@ def create_token(sub: str, token_type: TokenType, extra: dict[str, Any] | None =
         "exp": _exp(token_type),
         **(extra or {}),
     }
-    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
 def decode_token(token: str) -> dict[str, Any]:
-    return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+    return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
