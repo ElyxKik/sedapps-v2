@@ -1,0 +1,210 @@
+{
+  "page_schema": {
+    "pages": [
+      {
+        "meta": {
+          "slug": "home",
+          "title": "Atelier Solène — Pâtisserie artisanale",
+          "description": "Pâtisserie française artisanale à Lyon. Commandes en ligne, événements, cours.",
+          "og": { "title": "Atelier Solène", "description": "Pâtisserie artisanale à Lyon" },
+          "schema_org": {
+            "@context": "https://schema.org",
+            "@type": "Bakery",
+            "name": "Atelier Solène",
+            "address": { "@type": "PostalAddress", "addressLocality": "Lyon", "addressCountry": "FR" }
+          }
+        },
+        "layout": { "header_id": "default", "footer_id": "default" },
+        "sections": [
+          {
+            "id": "hero-1",
+            "type": "hero.split",
+            "props": {
+              "title": "Des gâteaux qui racontent une histoire.",
+              "subtitle": "Pâtisserie française artisanale, ingrédients locaux, savoir-faire transmis depuis trois générations.",
+              "cta_primary":   { "label": "Commander", "href": "#contact" },
+              "cta_secondary": { "label": "Découvrir", "href": "#features" }
+            }
+          },
+          {
+            "id": "feat-1",
+            "type": "features.grid",
+            "props": {
+              "title": "Notre savoir-faire",
+              "subtitle": "Tout est fait maison, le matin même.",
+              "columns": 3,
+              "items": [
+                { "title": "Ingrédients locaux", "desc": "Beurre AOP, farines bio, fruits de la région.", "icon": "🌾" },
+                { "title": "Sur commande", "desc": "Pièces uniques pour vos événements.", "icon": "🎂" },
+                { "title": "Cours pâtisserie", "desc": "Initiez-vous chaque samedi matin.", "icon": "👩‍🍳" }
+              ]
+            }
+          },
+          {
+            "id": "about-1",
+            "type": "about.split",
+            "props": {
+              "title": "Trois générations de passion",
+              "body": "Solène a repris l'atelier familial en 2018. Elle marie les recettes classiques aux saveurs d'aujourd'hui : cardamome, yuzu, miels rares.\n\nChaque création est une rencontre entre tradition et audace."
+            }
+          },
+          {
+            "id": "testi-1",
+            "type": "testimonials.carousel",
+            "props": {
+              "title": "Ils en parlent mieux que nous",
+              "items": [
+                { "author": "Camille R.", "role": "Cliente fidèle",
+                  "quote": "Le meilleur Paris-Brest de Lyon, sans hésitation." },
+                { "author": "Le Petit Gourmand", "role": "Magazine",
+                  "quote": "Une pâtisserie qui surprend par son audace tout en respectant les classiques." },
+                { "author": "Marc D.", "role": "Marié 2025",
+                  "quote": "Pièce montée à tomber. Tous nos invités l'ont remarquée." }
+              ]
+            }
+          },
+          {
+            "id": "faq-1",
+            "type": "faq.accordion",
+            "props": {
+              "title": "Questions fréquentes",
+              "items": [
+                { "q": "Combien de temps à l'avance dois-je commander ?",
+                  "a": "Idéalement 5 jours pour les pièces individuelles, 3 semaines pour les gros événements." },
+                { "q": "Livrez-vous à domicile ?",
+                  "a": "Oui, dans tout Lyon et la périphérie pour les commandes > 50€." },
+                { "q": "Les cours sont-ils ouverts aux débutants ?",
+                  "a": "Absolument — 80% de nos élèves débutent chez nous." }
+              ]
+            }
+          },
+          {
+            "id": "blog-1",
+            "type": "blog.index",
+            "props": { "title": "Le journal de l'atelier", "style": "grid", "per_page": 3 }
+          },
+          {
+            "id": "cta-1",
+            "type": "cta.banner",
+            "props": {
+              "title": "Une envie sucrée ? Parlons-en.",
+              "subtitle": "Devis gratuit en 24h pour tous vos événements.",
+              "cta": { "label": "Nous contacter", "href": "#contact" }
+            }
+          },
+          {
+            "id": "form-1",
+            "type": "form.contact",
+            "props": {
+              "title": "Contactez l'atelier",
+              "subtitle": "Nous répondons sous 24h ouvrées.",
+              "form_id": "contact-form",
+              "layout": "split"
+            }
+          }
+        ]
+      },
+      {
+        "meta": {
+          "slug": "about",
+          "title": "À propos — Atelier Solène",
+          "description": "L'histoire et l'équipe derrière l'Atelier Solène.",
+          "og": {},
+          "schema_org": {}
+        },
+        "layout": { "header_id": "default", "footer_id": "default" },
+        "sections": [
+          {
+            "id": "hero-about",
+            "type": "hero.center",
+            "props": {
+              "title": "Une famille, une passion, une signature.",
+              "subtitle": "Depuis 1962, l'atelier raconte le sucré comme on raconte une histoire."
+            }
+          },
+          {
+            "id": "rt-about",
+            "type": "richtext",
+            "props": {
+              "markdown": "## Nos valeurs\n\n- **Local d'abord** — fournisseurs dans un rayon de 50 km.\n- **Sans artifices** — aucun colorant artificiel, aucun arôme de synthèse.\n- **Transmettre** — nos cours gardent vivants les gestes des anciens.\n\n## L'équipe\n\nSolène, **chef pâtissière**, formée chez Pic et Hermé.\nThomas, **boulanger**, expert pâtes levées.\nLina, **chocolatière**, MOF chocolat 2022."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "design_tokens": {
+    "palette": {
+      "primary":   "#D946EF",
+      "secondary": "#F472B6",
+      "accent":    "#FBBF24",
+      "bg":        "#0B0712",
+      "surface":   "#1A1023",
+      "text":      "#FAF5FF",
+      "muted":     "#C4B5C7",
+      "success":   "#10B981",
+      "warning":   "#F59E0B",
+      "danger":    "#EF4444"
+    },
+    "typography": {
+      "heading": "Playfair Display",
+      "body":    "Inter",
+      "scale": { "h1": "3rem", "h2": "2rem", "h3": "1.5rem", "body": "1rem", "small": "0.875rem" }
+    },
+    "spacing": { "xs":"4px","sm":"8px","md":"16px","lg":"24px","xl":"32px","2xl":"48px","3xl":"64px" },
+    "radius":  { "sm":"6px","md":"12px","lg":"20px","full":"9999px" },
+    "shadow":  { "sm":"0 1px 2px rgba(0,0,0,.2)", "md":"0 6px 24px rgba(0,0,0,.25)", "lg":"0 20px 60px rgba(0,0,0,.3)" },
+    "vibe": "premium"
+  },
+  "seo": {
+    "sitemap": { "include": ["home", "about"] },
+    "robots":  "User-agent: *\nAllow: /"
+  },
+  "form": {
+    "id": "contact-form",
+    "name": "Contact",
+    "fields": [
+      { "key": "name",    "label": "Nom",     "type": "text",     "required": true, "max": 120 },
+      { "key": "email",   "label": "Email",   "type": "email",    "required": true },
+      { "key": "phone",   "label": "Téléphone", "type": "tel",    "required": false },
+      { "key": "message", "label": "Message", "type": "textarea", "required": true, "max": 2000 }
+    ],
+    "submit_label": "Envoyer",
+    "success_message": "Merci ! Nous vous répondons sous 24h."
+  },
+  "analytics": { "tracker_id": "sed-demo" },
+  "articles": [
+    {
+      "slug": "secrets-paris-brest",
+      "title": "Les secrets d'un Paris-Brest parfait",
+      "excerpt": "Croustillant, fondant, généreux : trois règles d'or pour un Paris-Brest mémorable.",
+      "cover_url": "",
+      "content_md": "## La pâte à choux\n\nUne pâte trop humide s'affaisse. Trop sèche : pas de gonflement.\n\n## Le praliné\n\nNoisettes du Piémont torréfiées, broyées 12 minutes minimum.\n\n## L'assemblage\n\nMontage minute, sinon adieu le croustillant.",
+      "published_at": "2026-04-12T08:00:00Z",
+      "reading_time_min": 4,
+      "seo": {
+        "title": "Les secrets d'un Paris-Brest parfait",
+        "meta_description": "Trois règles d'or pour réussir le Paris-Brest, par l'Atelier Solène.",
+        "keywords": ["paris-brest", "pâtisserie", "recette"]
+      }
+    },
+    {
+      "slug": "pourquoi-local",
+      "title": "Pourquoi nous travaillons local",
+      "excerpt": "Notre engagement pour les producteurs de la région.",
+      "content_md": "Tout simplement parce que **le goût se trouve dans la matière**.\n\n- Beurre fermier d'Ain\n- Farines bio d'Isère\n- Fruits du Beaujolais",
+      "published_at": "2026-03-22T08:00:00Z",
+      "reading_time_min": 3,
+      "seo": {}
+    },
+    {
+      "slug": "cours-debutants",
+      "title": "Nos cours pour débutants",
+      "excerpt": "3h pour repartir avec une vraie tarte au citron meringuée.",
+      "content_md": "Chaque samedi à 10h. Petit groupe (6 max). Tablier offert.",
+      "published_at": "2026-03-01T08:00:00Z",
+      "reading_time_min": 2,
+      "seo": {}
+    }
+  ]
+}
