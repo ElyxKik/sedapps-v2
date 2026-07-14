@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from app.agents import AGENT_REGISTRY, AgentInput
 from app.api.v1._auth import require_internal
+from app.skills import skill_manifest
 
 router = APIRouter()
 
@@ -25,6 +26,11 @@ class AgentRunIn(BaseModel):
 @router.get("")
 def list_agents() -> dict[str, list[str]]:
     return {"agents": sorted(AGENT_REGISTRY.keys())}
+
+
+@router.get("/skills", dependencies=[Depends(require_internal)])
+def list_skills() -> dict[str, object]:
+    return skill_manifest()
 
 
 @router.post("/{name}/run", dependencies=[Depends(require_internal)])

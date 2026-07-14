@@ -1,9 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
-import '../../data/api_client.dart';
+import 'auth_session.dart';
+import 'data/auth_repository.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -103,9 +105,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   runSpacing: 12,
                   children: const [
                     _Feature(icon: Icons.flash_on, label: 'Création rapide'),
-                    _Feature(icon: Icons.devices, label: 'Affichage mobile et ordinateur'),
-                    _Feature(icon: Icons.language, label: 'Adresse personnalisée (monsite.fr)'),
-                    _Feature(icon: Icons.cloud_done, label: 'Mise en ligne incluse'),
+                    _Feature(
+                        icon: Icons.devices,
+                        label: 'Affichage mobile et ordinateur'),
+                    _Feature(
+                        icon: Icons.language,
+                        label: 'Adresse personnalisée (monsite.fr)'),
+                    _Feature(
+                        icon: Icons.cloud_done, label: 'Mise en ligne incluse'),
                   ],
                 ),
                 const Spacer(),
@@ -244,12 +251,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Future<void> _login() async {
     setState(() => loading = true);
     try {
-      await ref.read(apiClientProvider).login(email.text, password.text);
+      await ref.read(authRepositoryProvider).login(email.text, password.text);
+      ref.read(authSessionProvider.notifier).authenticated();
       if (mounted) context.go('/');
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Email ou mot de passe incorrect. Vérifie tes identifiants.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Email ou mot de passe incorrect. Vérifie tes identifiants.')));
       }
     } finally {
       if (mounted) setState(() => loading = false);
@@ -259,17 +268,34 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Future<void> _register() async {
     setState(() => loading = true);
     try {
-      await ref.read(apiClientProvider).register(
-            email.text,
-            password.text,
-            orgName.text.isEmpty ? 'Sala AI' : orgName.text,
-            fullName.text.isEmpty ? 'Utilisateur' : fullName.text,
+      await ref.read(authRepositoryProvider).register(
+            email: email.text,
+            password: password.text,
+            organizationName: orgName.text.isEmpty ? 'Sala AI' : orgName.text,
+            fullName: fullName.text.isEmpty ? 'Utilisateur' : fullName.text,
           );
+      ref.read(authSessionProvider.notifier).authenticated();
       if (mounted) context.go('/');
+    } on DioException catch (error) {
+      if (mounted) {
+        final status = error.response?.statusCode;
+        final detail = error.response?.data is Map
+            ? error.response?.data['detail']?.toString()
+            : null;
+        final message = status == 409
+            ? 'Cette adresse email est déjà utilisée.'
+            : status == 422
+                ? 'Vérifie l’adresse email et utilise un mot de passe d’au moins 8 caractères.'
+                : detail != null && detail.isNotEmpty
+                    ? 'Inscription impossible : $detail'
+                    : 'Impossible de joindre le serveur. Vérifie ta connexion et réessaie.';
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
+      }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Inscription échouée. Cet email est peut-être déjà utilisé.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Une erreur inattendue est survenue. Réessaie.')));
       }
     } finally {
       if (mounted) setState(() => loading = false);

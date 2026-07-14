@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api_client.dart';
+import '../publish/data/publishing_repository.dart';
+import '../publish/domain/deployment.dart';
 
 final currentProjectIdProvider = StateProvider<String?>((ref) => null);
 
@@ -213,7 +215,7 @@ class ProjectWorkspaceNotifier extends StateNotifier<ProjectWorkspaceState> {
             publish: PublishState(
                 subdomainEnabled: true,
                 customDomainEnabled: false,
-                domain: 'monsite.sala.ai',
+                domain: 'mon-site.salaai.site',
                 status: 'draft'),
             messages: [
               ChatMessage(
@@ -341,11 +343,14 @@ class ProjectWorkspaceNotifier extends StateNotifier<ProjectWorkspaceState> {
       if (tokenFont is String && tokenFont.isNotEmpty) heading = tokenFont;
     }
 
-    final domain = project['domain']?.toString() ?? state.publish.domain;
-    final publishedUrl = project['published_url']?.toString();
-    final status = project['status']?.toString() == 'published'
-        ? 'published'
-        : state.publish.status;
+    final domain = project['custom_domain']?.toString() ??
+        project['domain']?.toString() ??
+        project['default_domain']?.toString() ??
+        state.publish.domain;
+    final isPublished = project['status']?.toString() == 'published';
+    final publishedUrl = project['published_url']?.toString() ??
+        (isPublished ? project['default_url']?.toString() : null);
+    final status = isPublished ? 'published' : state.publish.status;
     final nonce = project['preview_nonce']?.toString();
 
     // Stocker le brief du projet pour le chat
@@ -365,45 +370,56 @@ class ProjectWorkspaceNotifier extends StateNotifier<ProjectWorkspaceState> {
 
   Map<String, dynamic> _projectBrief = {};
 
+  void configurePublishingDomain(String domain, {required bool custom}) {
+    state = state.copyWith(
+      publish: state.publish.copyWith(
+        domain: domain,
+        customDomainEnabled: custom,
+        subdomainEnabled: !custom,
+      ),
+    );
+  }
+
   Future<void> publishSite() async {
     final projectId = _ref.read(currentProjectIdProvider);
     if (projectId == null) throw StateError('Aucun site actif.');
 
     state = state.copyWith(publish: state.publish.copyWith(status: 'building'));
     try {
-      final result = await _ref.read(apiClientProvider).deploySite(projectId);
-      final deploymentId = result['deployment_id']?.toString();
-      state = state.copyWith(
-          publish: state.publish.copyWith(status: 'uploading'));
+      final deployment = await _ref.read(publishingRepositoryProvider).deploy(
+          projectId,
+          customDomain:
+              state.publish.customDomainEnabled ? state.publish.domain : null);
+      final deploymentId = deployment.id;
+      state =
+          state.copyWith(publish: state.publish.copyWith(status: 'uploading'));
 
       // Poll deployment status
       for (var i = 0; i < 30; i++) {
         await Future<void>.delayed(const Duration(seconds: 2));
+        Deployment? latest;
         try {
-          final project =
-              await _ref.read(apiClientProvider).project(projectId);
-          final status = project['status']?.toString();
-          final publishedUrl = project['published_url']?.toString();
-          if (status == 'published' && publishedUrl != null) {
-            state = state.copyWith(
-                publish: state.publish.copyWith(
-                    status: 'published', url: publishedUrl));
-            return;
-          }
-          if (status == 'failed' || status == 'error') {
-            state =
-                state.copyWith(publish: state.publish.copyWith(status: 'draft'));
-            throw Exception('Le déploiement a échoué côté serveur.');
-          }
+          latest = await _ref
+              .read(publishingRepositoryProvider)
+              .status(projectId, deploymentId);
         } catch (_) {
           // réseau transitoire — on réessaie
+          continue;
+        }
+        if (latest == null) continue;
+        if (latest.isSuccessful) {
+          state = state.copyWith(
+              publish:
+                  state.publish.copyWith(status: 'published', url: latest.url));
+          return;
+        }
+        if (latest.isFailed) {
+          throw Exception(
+              latest.error ?? 'Le déploiement a échoué côté serveur.');
         }
       }
-      // Timeout — on considère publié optimistement
-      state = state.copyWith(
-          publish: state.publish.copyWith(
-              status: 'published',
-              url: 'https://${state.publish.domain}'));
+      throw Exception(
+          'Le déploiement prend trop de temps. Réessaie dans quelques instants.');
     } catch (e) {
       state = state.copyWith(publish: state.publish.copyWith(status: 'draft'));
       rethrow;
@@ -504,7 +520,8 @@ class ProjectWorkspaceNotifier extends StateNotifier<ProjectWorkspaceState> {
           .read(apiClientProvider)
           .chatWithProject(projectId, history);
       if (responseText.trim().isEmpty) {
-        responseText = 'Je n\'ai pas de réponse pour le moment. Reformule ta demande et réessaie.';
+        responseText =
+            'Je n\'ai pas de réponse pour le moment. Reformule ta demande et réessaie.';
         isError = true;
       }
     } catch (error) {

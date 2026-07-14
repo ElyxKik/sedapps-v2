@@ -8,7 +8,7 @@ STANDARD_RULES: dict[str, Any] = {
     "min_pages_multipage": 3,
     "max_pages_multipage": 5,
     "motion_level": "medium",
-    "qa_min_score": 70,
+    "qa_min_score": 85,
     "refinement_required": False,
 }
 

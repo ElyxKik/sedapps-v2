@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-SERVER_IP="193.168.175.108"
 FLUTTER_PATH="/Users/elykik/Documents/seda.website/sala-ai-cloud/apps/mobile"
+API_BASE_URL="${API_BASE_URL:-https://api.salaai.site}"
 
 echo "🚀 Déploiement Flutter sur Firebase Hosting"
 echo ""
@@ -11,7 +11,8 @@ echo ""
 echo "🔨 Build Flutter web..."
 cd "$FLUTTER_PATH"
 flutter build web \
-  --dart-define=CORE_API_BASE_URL=https://api.winandbet.online \
+  --no-wasm-dry-run \
+  --dart-define=CORE_API_BASE_URL="$API_BASE_URL" \
   --dart-define=MOCK_DATA=false \
   --release
 
@@ -29,4 +30,5 @@ echo ""
 echo "✨ Déploiement terminé!"
 echo ""
 echo "📍 Votre app est disponible à l'URL Firebase"
-echo "🔗 API serveur: http://$SERVER_IP:8000"
+echo "🔗 Application: https://sedapps.web.app"
+echo "🔗 API serveur: $API_BASE_URL"

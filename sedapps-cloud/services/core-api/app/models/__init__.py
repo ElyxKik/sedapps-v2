@@ -9,6 +9,8 @@ from app.models.media import Media
 from app.models.form import Form, FormSubmission, SubmissionStatus
 from app.models.ai_job import AiJob, AgentRun, JobStatus
 from app.models.deployment import Deployment, DeploymentStatus
+from app.models.comment import Comment, CommentStatus
+from app.models.domain import Domain, DomainStatus
 
 __all__ = [
     "Organization",
@@ -33,4 +35,8 @@ __all__ = [
     "JobStatus",
     "Deployment",
     "DeploymentStatus",
+    "Comment",
+    "CommentStatus",
+    "Domain",
+    "DomainStatus",
 ]

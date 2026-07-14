@@ -7,6 +7,9 @@ import '../core/breakpoints.dart';
 import '../core/theme.dart';
 import '../features/agents/agent_state.dart';
 
+/// Controls the desktop navigation width from full-screen project workspaces.
+final sidebarExpandedProvider = StateProvider<bool>((ref) => true);
+
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({required this.child, super.key});
 
@@ -27,15 +30,15 @@ class _NavItem {
 const _items = <_NavItem>[
   _NavItem('Accueil', Icons.space_dashboard_outlined,
       Icons.space_dashboard_rounded, '/'),
-  _NavItem('Mes sites', Icons.folder_outlined, Icons.folder_rounded, '/projects'),
+  _NavItem(
+      'Mes sites', Icons.folder_outlined, Icons.folder_rounded, '/projects'),
   _NavItem('Créer un site', Icons.add_circle_outline, Icons.add_circle_rounded,
       '/new-site'),
-  _NavItem('Mon compte', Icons.person_outline, Icons.person_rounded, '/account'),
+  _NavItem(
+      'Mon compte', Icons.person_outline, Icons.person_rounded, '/account'),
 ];
 
 class _AppShellState extends ConsumerState<AppShell> {
-  bool _expanded = true;
-
   @override
   void initState() {
     super.initState();
@@ -84,6 +87,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final loc = GoRouterState.of(context).matchedLocation;
     final idx = _selectedIndex(loc);
     final isDesktop = Breakpoints.isDesktop(context);
+    final expanded = ref.watch(sidebarExpandedProvider);
 
     if (!isDesktop) {
       return Scaffold(
@@ -102,9 +106,10 @@ class _AppShellState extends ConsumerState<AppShell> {
       body: Row(
         children: [
           _DesktopSidebar(
-            expanded: _expanded,
+            expanded: expanded,
             currentIndex: idx,
-            onToggle: () => setState(() => _expanded = !_expanded),
+            onToggle: () =>
+                ref.read(sidebarExpandedProvider.notifier).state = !expanded,
             onSelect: (i) => context.go(_items[i].path),
           ),
           Expanded(
@@ -201,108 +206,212 @@ class _DesktopSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = expanded ? 248.0 : 80.0;
+    final collapsed = !expanded;
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      width: width,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+      width: collapsed ? 72 : 260,
+      height: double.infinity,
       decoration: const BoxDecoration(
-        color: AppColors.surface,
+        color: Color(0xFF0A0A0F),
         border: Border(right: BorderSide(color: AppColors.borderSoft)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header (logo + toggle)
-          Padding(
-            padding: EdgeInsets.fromLTRB(expanded ? 18 : 12, 20, 12, 20),
+          Container(
+            height: 64,
+            padding: EdgeInsets.symmetric(horizontal: collapsed ? 5 : 16),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
+            ),
             child: Row(
-              mainAxisAlignment: expanded
-                  ? MainAxisAlignment.spaceBetween
-                  : MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                if (expanded)
-                  const Flexible(child: _Logo())
-                else
-                  const _LogoMark(),
-                if (expanded)
-                  _IconBadge(
-                    icon: Icons.menu_open_rounded,
-                    onTap: onToggle,
+                const _LogoMark(),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  child: collapsed
+                      ? const SizedBox.shrink(key: ValueKey('logo-collapsed'))
+                      : const Padding(
+                          key: ValueKey('logo-expanded'),
+                          padding: EdgeInsets.only(left: 12),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Sala AI',
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800)),
+                              Text('AI Builder Platform',
+                                  style: TextStyle(
+                                      color: Color(0xCC60A5FA), fontSize: 10)),
+                            ],
+                          ),
+                        ),
+                ),
+                if (!collapsed) const Spacer(),
+                Tooltip(
+                  message: collapsed ? 'Développer' : 'Réduire',
+                  child: IconButton(
+                    onPressed: onToggle,
+                    iconSize: 19,
+                    padding:
+                        collapsed ? EdgeInsets.zero : const EdgeInsets.all(8),
+                    constraints: collapsed
+                        ? const BoxConstraints.tightFor(width: 28, height: 36)
+                        : const BoxConstraints(),
+                    color: AppColors.textMuted,
+                    icon: Icon(collapsed
+                        ? Icons.keyboard_double_arrow_right
+                        : Icons.keyboard_double_arrow_left),
                   ),
+                ),
               ],
             ),
           ),
-          if (!expanded)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Center(
-                child: _IconBadge(
-                  icon: Icons.menu_rounded,
-                  onTap: onToggle,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+            child: SizedBox(
+              width: double.infinity,
+              height: 42,
+              child: FilledButton(
+                onPressed: () => onSelect(2),
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: collapsed ? 0 : 14),
+                  elevation: 6,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Row(
+                  mainAxisAlignment: collapsed
+                      ? MainAxisAlignment.center
+                      : MainAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.add, size: 19),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: collapsed
+                          ? const SizedBox.shrink(
+                              key: ValueKey('new-collapsed'))
+                          : const Padding(
+                              key: ValueKey('new-expanded'),
+                              padding: EdgeInsets.only(left: 10),
+                              child: Text('Nouveau projet',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w700))),
+                    ),
+                  ],
                 ),
               ),
             ),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          // Items
+          ),
           Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.symmetric(horizontal: expanded ? 12 : 8),
-              itemCount: _items.length,
-              itemBuilder: (context, i) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: _SidebarItem(
-                    item: _items[i],
-                    selected: i == currentIndex,
-                    expanded: expanded,
-                    onTap: () => onSelect(i),
-                  ),
-                );
-              },
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Column(children: [
+                _SidebarSection(
+                  title: 'PRINCIPAL',
+                  expanded: expanded,
+                  children: [
+                    for (final i in [0, 1])
+                      _SidebarItem(
+                          item: _items[i],
+                          selected: i == currentIndex,
+                          expanded: expanded,
+                          onTap: () => onSelect(i)),
+                  ],
+                ),
+                _SidebarSection(
+                  title: 'COMPTE',
+                  expanded: expanded,
+                  children: [
+                    _SidebarItem(
+                        item: _items[3],
+                        selected: currentIndex == 3,
+                        expanded: expanded,
+                        onTap: () => onSelect(3)),
+                  ],
+                ),
+              ]),
             ),
           ),
-          // Footer
-          const Divider(height: 1),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-                expanded ? 14 : 8, 14, expanded ? 14 : 8, 18),
-            child: expanded
-                ? Row(
-                    children: [
-                      const _Avatar(),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Mon compte',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                    fontSize: 13)),
-                            Text('Pro plan',
-                                style: TextStyle(
-                                    fontSize: 11, color: AppColors.textMuted)),
-                          ],
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: AppColors.borderSoft))),
+            child: Row(
+              mainAxisAlignment: collapsed
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                const _Avatar(),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  child: collapsed
+                      ? const SizedBox.shrink(
+                          key: ValueKey('account-collapsed'))
+                      : const Padding(
+                          key: ValueKey('account-expanded'),
+                          padding: EdgeInsets.only(left: 12),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Mon compte',
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700)),
+                                Text('Espace personnel',
+                                    style: TextStyle(
+                                        color: AppColors.textMuted,
+                                        fontSize: 11)),
+                              ]),
                         ),
-                      ),
-                      _IconBadge(
-                        icon: Icons.notifications_none_rounded,
-                        hasDot: true,
-                        onTap: () {},
-                      ),
-                    ],
-                  )
-                : const Center(child: _Avatar()),
+                ),
+                if (!collapsed) const Spacer(),
+                if (!collapsed)
+                  IconButton(
+                      tooltip: 'Paramètres',
+                      onPressed: () => onSelect(3),
+                      icon: const Icon(Icons.settings_outlined,
+                          size: 18, color: AppColors.textMuted)),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+class _SidebarSection extends StatelessWidget {
+  const _SidebarSection(
+      {required this.title, required this.expanded, required this.children});
+  final String title;
+  final bool expanded;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.only(bottom: expanded ? 20 : 4),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: expanded
+                ? Padding(
+                    key: ValueKey(title),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                    child: Text(title,
+                        style: const TextStyle(
+                            color: Colors.white24,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1.2)))
+                : const SizedBox.shrink(),
+          ),
+          ...children,
+        ]),
+      );
 }
 
 class _SidebarItem extends StatefulWidget {
@@ -337,44 +446,47 @@ class _SidebarItemState extends State<_SidebarItem> {
 
     final content = AnimatedContainer(
       duration: const Duration(milliseconds: 160),
-      padding: EdgeInsets.symmetric(
-          horizontal: widget.expanded ? 12 : 0, vertical: 10),
+      height: 42,
+      padding: EdgeInsets.symmetric(horizontal: widget.expanded ? 12 : 0),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(12),
+        border: selected ? Border.all(color: const Color(0x3353A2FF)) : null,
       ),
       child: Row(
         mainAxisAlignment: widget.expanded
             ? MainAxisAlignment.start
             : MainAxisAlignment.center,
         children: [
+          Icon(selected ? widget.item.selectedIcon : widget.item.icon,
+              color: fg, size: widget.expanded ? 18 : 21),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: widget.expanded
+                ? SizedBox(
+                    key: ValueKey(widget.item.label),
+                    width: 174,
+                    child: Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: Text(
+                          widget.item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: fg,
+                            fontWeight:
+                                selected ? FontWeight.w700 : FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        )))
+                : const SizedBox.shrink(),
+          ),
           if (selected && widget.expanded)
             Container(
-              width: 3,
-              height: 18,
-              margin: const EdgeInsets.only(right: 10),
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-          Icon(selected ? widget.item.selectedIcon : widget.item.icon,
-              color: fg, size: 20),
-          if (widget.expanded) ...[
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                widget.item.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: fg,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                    color: Color(0xFF60A5FA), shape: BoxShape.circle)),
         ],
       ),
     );

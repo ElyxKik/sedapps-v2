@@ -9,7 +9,7 @@ Service interne responsable de publier un site généré par SedApps Cloud.
 3. Écrit le payload dans `content/site.json`.
 4. Exécute `npm install && npm run build`.
 5. Upload le dossier `out/` vers OVH Object Storage (S3 compatible).
-6. Configure le DNS OVH pour `slug.sedapps.cloud` si aucun domaine custom n'est fourni.
+6. Configure le DNS OVH pour `slug.salaai.site` si aucun domaine custom n'est fourni.
 7. Notifie `core-api` via callback interne si l'endpoint existe.
 
 ## Mode dry-run
@@ -27,7 +27,7 @@ DEPLOY_DRY_RUN=false
 OVH_APP_KEY=...
 OVH_APP_SECRET=...
 OVH_CONSUMER_KEY=...
-OVH_ZONE_NAME=sedapps.cloud
+OVH_ZONE_NAME=salaai.site
 OVH_S3_ENDPOINT=https://s3.gra.io.cloud.ovh.net
 OVH_S3_REGION=gra
 OVH_S3_BUCKET=...

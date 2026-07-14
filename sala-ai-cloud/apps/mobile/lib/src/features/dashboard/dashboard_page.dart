@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
-import '../../data/api_client.dart';
+import '../projects/data/project_repository.dart';
+import '../projects/domain/project.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/page_scaffold.dart';
 
@@ -12,7 +13,7 @@ class DashboardPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final projectsFuture = ref.watch(apiClientProvider).projects();
+    final projectsFuture = ref.watch(projectRepositoryProvider).list();
     return PageScaffold(
       title: 'Bienvenue sur Sala AI',
       subtitle: 'Crée, améliore et publie tes sites depuis un seul espace.',
@@ -22,14 +23,12 @@ class DashboardPage extends ConsumerWidget {
         label: const Text('Nouveau site'),
       ),
       children: [
-        FutureBuilder<List<dynamic>>(
+        FutureBuilder<List<Project>>(
           future: projectsFuture,
           builder: (context, snapshot) {
             final projects = snapshot.data ?? [];
-            final publishedCount = projects.where((project) {
-              final item = Map<String, dynamic>.from(project as Map);
-              return item['status']?.toString() == 'published';
-            }).length;
+            final publishedCount =
+                projects.where((project) => project.isPublished).length;
             final draftCount = projects.length - publishedCount;
             return LayoutBuilder(
               builder: (context, constraints) {
@@ -129,7 +128,7 @@ class DashboardPage extends ConsumerWidget {
 
 class _RecentProjects extends StatelessWidget {
   const _RecentProjects({required this.projectsFuture});
-  final Future<List<dynamic>> projectsFuture;
+  final Future<List<Project>> projectsFuture;
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +146,7 @@ class _RecentProjects extends StatelessWidget {
                 child: const Text('Voir tout'),
               ),
             ),
-            FutureBuilder<List<dynamic>>(
+            FutureBuilder<List<Project>>(
               future: projectsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -175,7 +174,8 @@ class _RecentProjects extends StatelessWidget {
                           Text('Aucun site pour le moment',
                               style: Theme.of(context).textTheme.titleMedium),
                           const SizedBox(height: 4),
-                          const Text('Crée ton premier site en quelques minutes.',
+                          const Text(
+                              'Crée ton premier site en quelques minutes.',
                               style: TextStyle(color: AppColors.textSecondary)),
                         ],
                       ),
@@ -185,8 +185,7 @@ class _RecentProjects extends StatelessWidget {
                 return Column(
                   children: [
                     for (final project in projects.take(5))
-                      _ProjectRow(
-                          project: Map<String, dynamic>.from(project as Map)),
+                      _ProjectRow(project: project),
                   ],
                 );
               },
@@ -200,15 +199,14 @@ class _RecentProjects extends StatelessWidget {
 
 class _ProjectRow extends StatelessWidget {
   const _ProjectRow({required this.project});
-  final Map<String, dynamic> project;
+  final Project project;
 
   @override
   Widget build(BuildContext context) {
-    final status = project['status']?.toString() ?? 'draft';
-    final published = status == 'published';
+    final published = project.isPublished;
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => context.go('/projects/${project['id']}'),
+      onTap: () => context.go('/projects/${project.id}'),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         child: Row(
@@ -232,15 +230,12 @@ class _ProjectRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(project['name']?.toString() ?? 'Projet',
+                  Text(project.name,
                       style: Theme.of(context).textTheme.titleSmall,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
-                  Text(
-                      published
-                          ? 'En ligne'
-                          : 'À finaliser',
+                  Text(published ? 'En ligne' : 'À finaliser',
                       style: const TextStyle(
                           color: AppColors.textSecondary, fontSize: 12)),
                 ],

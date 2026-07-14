@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.project import Project
 from app.models.site_version import SiteVersion
+from app.component_sdk import migrate_page_schema, render_component_document
 
 router = APIRouter()
 
@@ -143,9 +144,31 @@ def _render_html(project: Project, version: SiteVersion) -> str:
 
 @router.get("/p/{slug}/", include_in_schema=False)
 @router.get("/p/{slug}/index.html", tags=["preview"])
-def preview_index(slug: str, db: Session = Depends(get_db)) -> HTMLResponse:
+def preview_index(
+    slug: str,
+    structured: bool = False,
+    edit: bool = False,
+    page: str | None = None,
+    db: Session = Depends(get_db),
+) -> HTMLResponse:
     project, version = _latest_site_version(db, slug)
     page_schema = version.page_schema or {}
+
+    component_tree = page_schema.get("component_tree")
+    if structured and not isinstance(component_tree, dict):
+        component_tree = migrate_page_schema(page_schema, version.design_tokens or {})
+    pages = component_tree.get("pages") if isinstance(component_tree, dict) else []
+    if structured and pages and pages[0].get("slots", {}).get("body"):
+        return HTMLResponse(
+            content=render_component_document(
+                component_tree,
+                title=str((version.seo or {}).get("title") or project.name),
+                description=str((version.seo or {}).get("description") or project.sector or ""),
+                edit_mode=edit,
+                page_slug=page,
+            ),
+            status_code=200,
+        )
 
     if page_schema.get("render_mode") == "static_classic":
         files = page_schema.get("generated_files") or page_schema.get("files") or []

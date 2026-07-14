@@ -17,6 +17,8 @@ from app.agents.strategy_director import StrategyDirectorAgent
 from app.agents.ux_architect import UXArchitectAgent
 from app.agents.premium_qa import PremiumQAAgent
 from app.agents.refinement_agent import RefinementAgent
+from app.agents.component_editor import ComponentEditorAgent
+from app.agents.project_chat import ProjectChatAgent
 
 __all__ = [
     "AgentInput",
@@ -41,4 +43,6 @@ __all__ = [
     "UXArchitectAgent",
     "PremiumQAAgent",
     "RefinementAgent",
+    "ComponentEditorAgent",
+    "ProjectChatAgent",
 ]

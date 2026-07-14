@@ -63,6 +63,28 @@ services:
     command: celery -A app.celery_app.celery worker --loglevel=INFO --concurrency=1 --uid=nobody --gid=nogroup
     mem_limit: 192m
 
+  deploy-service:
+    build: ./services/deploy-service
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      redis: { condition: service_healthy }
+      core-api: { condition: service_started }
+    ports:
+      - "127.0.0.1:8002:8002"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --proxy-headers
+    mem_limit: 192m
+
+  deploy-worker:
+    build: ./services/deploy-service
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      redis: { condition: service_healthy }
+      core-api: { condition: service_started }
+    command: celery -A app.celery_app.celery worker --loglevel=INFO --concurrency=1 --uid=nobody --gid=nogroup
+    mem_limit: 256m
+
 volumes:
   pgdata:
   redisdata:

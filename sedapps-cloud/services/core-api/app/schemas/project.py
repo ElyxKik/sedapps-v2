@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_serializer, field_validator
 
 from app.models.project import ProjectStatus
+from app.config import settings
 
 
 class ProjectCreate(BaseModel):
@@ -31,6 +33,9 @@ class ProjectOut(BaseModel):
     custom_domain: str | None
     preview_nonce: str | None = None
     active_job_id: UUID | None = None
+    created_at: datetime
+    default_domain: str = ""
+    default_url: str = ""
 
     model_config = {"from_attributes": True}
 
@@ -47,6 +52,8 @@ class ProjectOut(BaseModel):
         data = super().model_validate(obj, *args, **kwargs)
         if not data.preview_nonce:
             data.preview_nonce = data.slug
+        data.default_domain = f"{data.slug}.{settings.DEPLOY_BASE_DOMAIN}"
+        data.default_url = f"https://{data.default_domain}"
         return data
 
 
@@ -113,3 +120,51 @@ class DeploymentOut(BaseModel):
     domain: str | None = None
     url: str | None = None
     error: str | None = None
+
+
+class ComponentPatchIn(BaseModel):
+    element_id: str = Field(min_length=1, max_length=120)
+    ops: list[dict[str, Any]] = Field(min_length=1, max_length=50)
+
+
+class ComponentPatchOut(BaseModel):
+    status: Literal["ok"] = "ok"
+    element: dict[str, Any]
+    site_version_id: str
+    version: int
+    can_undo: bool
+    undo_depth: int
+
+
+class ComponentChatIn(BaseModel):
+    element_id: str = Field(min_length=1, max_length=120)
+    instruction: str = Field(min_length=1, max_length=4000)
+    selected: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProjectChatIn(BaseModel):
+    messages: list[dict[str, str]] = Field(min_length=1, max_length=50)
+
+
+class PageCreateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    slug: str = Field(min_length=1, max_length=120, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    template: Literal["blank", "standard", "contact"] = "standard"
+
+
+class PageUpdateIn(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=80)
+    slug: str | None = Field(None, min_length=1, max_length=120, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+class PageRegenerateIn(BaseModel):
+    instruction: str = Field(default="Améliore cette page", min_length=3, max_length=2000)
+
+
+class DocumentReplaceIn(BaseModel):
+    document: dict[str, Any]
+
+
+class ComponentCreateIn(BaseModel):
+    type: Literal["Title", "Text", "Button", "Image", "Section"]
+    props: dict[str, Any] = Field(default_factory=dict)

@@ -39,6 +39,7 @@ class ArticleOut(BaseModel):
     title: str
     excerpt: str | None
     cover_url: str | None
+    content_md: str
     status: ArticleStatus
     published_at: datetime | None
     scheduled_at: datetime | None

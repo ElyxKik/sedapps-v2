@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     AI_ORCHESTRATOR_URL: str = "http://ai-orchestrator:8001"
     DEPLOY_SERVICE_URL: str = "http://deploy-service:8002"
+    DEPLOY_BASE_DOMAIN: str = "salaai.site"
     INTERNAL_API_TOKEN: str = "change-me-internal-token"
 
     # OVH Domain purchasing API credentials

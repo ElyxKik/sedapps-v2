@@ -46,7 +46,8 @@ class AgentsPage extends ConsumerWidget {
               error: (error, stackTrace) => Card(
                   child: Padding(
                       padding: const EdgeInsets.all(20),
-                      child: Text('Les étapes ne sont pas disponibles pour le moment.')),
+                      child: const Text(
+                          'Les étapes ne sont pas disponibles pour le moment.'))),
             ),
       ],
     );

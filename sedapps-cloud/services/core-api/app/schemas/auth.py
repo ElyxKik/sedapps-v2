@@ -30,3 +30,14 @@ class MeOut(BaseModel):
     locale: str
     org_id: str
     role: str
+
+
+class AccountOut(MeOut):
+    org_name: str
+    plan: str
+
+
+class AccountUpdate(BaseModel):
+    full_name: str | None = Field(None, min_length=1, max_length=120)
+    locale: str | None = Field(None, min_length=2, max_length=8)
+    org_name: str | None = Field(None, min_length=2, max_length=120)

@@ -5,12 +5,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme.dart';
 import '../../data/api_client.dart';
+import '../auth/auth_session.dart';
+import 'data/billing_repository.dart';
+import 'domain/credit_wallet.dart';
 import '../../data/localization_provider.dart';
 import '../../data/theme_provider.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/notifications.dart';
 import '../../widgets/page_scaffold.dart';
+import 'domains_section.dart';
 
 class AccountPage extends ConsumerWidget {
   const AccountPage({super.key});
@@ -27,24 +31,19 @@ class _AccountPageContent extends ConsumerStatefulWidget {
   const _AccountPageContent({required this.ref});
 
   @override
-  ConsumerState<_AccountPageContent> createState() =>
-      _AccountPageState();
+  ConsumerState<_AccountPageContent> createState() => _AccountPageState();
 }
 
 class _AccountPageState extends ConsumerState<_AccountPageContent> {
-  static const _languageKey = 'account_language';
-  static const _themeKey = 'account_theme';
-  static const _timezoneKey = 'account_timezone';
   static const _emailNotificationsKey = 'account_email_notifications';
 
-  String _language = 'Français';
-  String _theme = 'Clair';
-  String _timezone = 'Europe/Paris';
   bool _emailNotifications = true;
+  late Future<Map<String, dynamic>> _accountFuture;
 
   @override
   void initState() {
     super.initState();
+    _accountFuture = widget.ref.read(apiClientProvider).account();
     _loadPreferences();
   }
 
@@ -52,9 +51,6 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _language = prefs.getString(_languageKey) ?? _language;
-      _theme = prefs.getString(_themeKey) ?? _theme;
-      _timezone = prefs.getString(_timezoneKey) ?? _timezone;
       _emailNotifications =
           prefs.getBool(_emailNotificationsKey) ?? _emailNotifications;
     });
@@ -63,13 +59,19 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
   @override
   Widget build(BuildContext context) {
     final ref = widget.ref;
-    final locale = ref.watch(localizationProvider);
+    final language = ref.watch(localizationProvider);
+    final themeMode = ref.watch(themeProvider);
+    final themeName = switch (themeMode) {
+      ThemeMode.dark => 'Sombre',
+      ThemeMode.system => 'Système',
+      _ => 'Clair',
+    };
     return PageScaffold(
       title: 'Mon compte',
       subtitle: 'Gère ton profil, ton abonnement et tes préférences',
       children: [
         FutureBuilder<Map<String, dynamic>>(
-          future: ref.read(apiClientProvider).account(),
+          future: _accountFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Card(
@@ -154,17 +156,22 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
           },
         ),
         const SizedBox(height: 24),
+        const FadeInUp(
+          delay: Duration(milliseconds: 75),
+          child: AccountDomainsSection(),
+        ),
+        const SizedBox(height: 24),
         FadeInUp(
           delay: const Duration(milliseconds: 50),
-          child: FutureBuilder<Map<String, dynamic>>(
-            future: ref.read(apiClientProvider).creditWallet(),
+          child: FutureBuilder<CreditWallet>(
+            future: ref.read(billingRepositoryProvider).wallet(),
             builder: (context, snapshot) {
-              final wallet = snapshot.data ?? {};
-              final available = wallet['available_credits'] ?? '—';
-              final balance = wallet['balance_credits'] ?? '—';
-              final used = wallet['used_this_month_credits'] ?? 0;
-              final quota = wallet['monthly_quota_credits'] ?? 0;
-              final plan = wallet['plan']?.toString() ?? 'free';
+              final wallet = snapshot.data;
+              final available = wallet?.available;
+              final balance = wallet?.balance;
+              final used = wallet?.usedThisMonth ?? 0;
+              final quota = wallet?.monthlyQuota ?? 0;
+              final plan = wallet?.plan ?? 'free';
               return Card(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -177,7 +184,8 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0EA5E9).withValues(alpha: 0.12),
+                              color: const Color(0xFF0EA5E9)
+                                  .withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(Icons.auto_awesome,
@@ -192,14 +200,15 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
                                     style: TextStyle(
                                         fontWeight: FontWeight.w800,
                                         fontSize: 16)),
-                                Text('Ils sont utilisés lorsque Sala AI crée ou améliore un site pour toi.',
+                                Text(
+                                    'Ils sont utilisés lorsque Sala AI crée ou améliore un site pour toi.',
                                     style: const TextStyle(
                                         color: AppColors.textSecondary,
                                         fontSize: 12)),
                               ],
                             ),
                           ),
-                          Text('$available crédits',
+                          Text('${available ?? '—'} crédits',
                               style: const TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 18,
@@ -208,20 +217,18 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
                       ),
                       const SizedBox(height: 16),
                       LinearProgressIndicator(
-                        value: quota == 0
-                            ? 0
-                            : ((used as num).toDouble() /
-                                    (quota as num).toDouble())
-                                .clamp(0, 1),
+                        value: wallet?.usageRatio ?? 0,
                         minHeight: 8,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       const SizedBox(height: 8),
-                      Text('Solde total : $balance crédits · Utilisés ce mois-ci : $used / $quota',
+                      Text(
+                          'Solde total : ${balance ?? '—'} crédits · Utilisés ce mois-ci : $used / $quota · Plan $plan',
                           style: const TextStyle(
                               color: AppColors.textSecondary, fontSize: 12)),
                       const SizedBox(height: 6),
-                      const Text('Une création de site standard utilise environ 250 crédits.',
+                      const Text(
+                          'Une création de site standard utilise environ 250 crédits.',
                           style: TextStyle(
                               color: AppColors.textSecondary, fontSize: 12)),
                     ],
@@ -266,7 +273,8 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
                     icon: Icons.notifications_outlined,
                     color: const Color(0xFF0EA5E9),
                     label: 'Notifications',
-                    value: _emailNotifications ? 'Email actif' : 'Email désactivé',
+                    value:
+                        _emailNotifications ? 'Email actif' : 'Email désactivé',
                     onTap: _showNotificationsDialog,
                   ),
                   _SettingItem(
@@ -293,47 +301,25 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
                   const SectionHeader(title: 'Préférences'),
                   _PreferenceItem(
                       label: 'Langue',
-                      value: _language,
+                      value: language,
                       onTap: () => _showChoiceDialog(
                             title: 'Langue',
-                            currentValue: _language,
+                            currentValue: language,
                             values: const ['Français', 'English'],
-                            onSelected: (value) {
-                              ref
-                                  .read(localizationProvider.notifier)
-                                  .setLanguage(value);
-                              setState(() => _language = value);
-                            },
+                            onSelected: (value) => ref
+                                .read(localizationProvider.notifier)
+                                .setLanguage(value),
                           )),
                   _PreferenceItem(
                       label: 'Thème',
-                      value: _theme,
+                      value: themeName,
                       onTap: () => _showChoiceDialog(
                             title: 'Thème',
-                            currentValue: _theme,
+                            currentValue: themeName,
                             values: const ['Clair', 'Sombre', 'Système'],
-                            onSelected: (value) {
-                              ref
-                                  .read(themeProvider.notifier)
-                                  .setTheme(value);
-                              setState(() => _theme = value);
-                            },
-                          )),
-                  _PreferenceItem(
-                      label: 'Fuseau horaire',
-                      value: _timezone,
-                      onTap: () => _showChoiceDialog(
-                            title: 'Fuseau horaire',
-                            currentValue: _timezone,
-                            values: const [
-                              'Europe/Paris',
-                              'Africa/Lagos',
-                              'UTC'
-                            ],
-                            onSelected: (value) => _saveStringPreference(
-                                _timezoneKey, value,
-                                onSaved: () =>
-                                    setState(() => _timezone = value)),
+                            onSelected: (value) => ref
+                                .read(themeProvider.notifier)
+                                .setTheme(value),
                           )),
                 ],
               ),
@@ -367,7 +353,7 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
                 message: 'Es-tu sûr de vouloir te déconnecter ?',
                 confirmText: 'Déconnecter',
                 onConfirm: () async {
-                  await ref.read(tokenStoreProvider).clear();
+                  await ref.read(authSessionProvider.notifier).logout();
                   if (context.mounted) context.go('/login');
                 },
               ),
@@ -382,47 +368,65 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
     required String title,
     required String currentValue,
     required List<String> values,
-    required ValueChanged<String> onSelected,
+    required Future<void> Function(String) onSelected,
   }) async {
     final selected = await showDialog<String>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: Text(title),
-        children: [
+      builder: (context) => _AccountDialog(
+        icon: title == 'Langue' ? Icons.translate : Icons.palette_outlined,
+        title: title,
+        subtitle: 'Le changement est appliqué immédiatement et mémorisé.',
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
           for (final value in values)
-            RadioListTile<String>(
-              value: value,
-              groupValue: currentValue,
-              title: Text(value),
-              onChanged: (value) => Navigator.of(context).pop(value),
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: value == currentValue
+                    ? AppColors.primary.withValues(alpha: .12)
+                    : AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: value == currentValue
+                        ? AppColors.primary
+                        : AppColors.borderSoft),
+              ),
+              child: RadioListTile<String>(
+                value: value,
+                groupValue: currentValue,
+                title: Text(value,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                onChanged: (value) => Navigator.of(context).pop(value),
+              ),
             ),
-        ],
+        ]),
       ),
     );
     if (selected == null) return;
-    onSelected(selected);
+    await onSelected(selected);
     if (mounted) {
       NotificationService.success(context, '$title mis à jour');
     }
   }
 
-  Future<void> _saveStringPreference(String key, String value,
-      {required VoidCallback onSaved}) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(key, value);
-    if (mounted) onSaved();
-  }
-
   Future<void> _showNotificationsDialog() async {
     final enabled = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Notifications'),
-        content: SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Notifications email'),
-          value: _emailNotifications,
-          onChanged: (value) => Navigator.of(context).pop(value),
+      builder: (context) => _AccountDialog(
+        icon: Icons.notifications_outlined,
+        title: 'Notifications',
+        subtitle: 'Choisis comment SalaAI peut te tenir informé.',
+        child: Container(
+          decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(14)),
+          child: SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Notifications email'),
+            subtitle:
+                const Text('Publications, domaines et alertes importantes'),
+            value: _emailNotifications,
+            onChanged: (value) => Navigator.of(context).pop(value),
+          ),
         ),
         actions: [
           TextButton(
@@ -442,24 +446,43 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
   }
 
   Future<void> _showBillingDialog() async {
-    final account = await ref.read(apiClientProvider).account();
+    final account = await _accountFuture;
     if (!mounted) return;
     final orgName = account['org_name']?.toString() ?? 'Organisation';
     final email = account['email']?.toString() ?? '';
     return showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Facturation'),
-        content: Column(
+      builder: (context) => _AccountDialog(
+        icon: Icons.credit_card_outlined,
+        title: 'Abonnement et paiement',
+        subtitle: 'Informations de facturation de ton organisation.',
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Organisation : $orgName'),
-            const SizedBox(height: 8),
-            Text('Email : $email'),
-            const SizedBox(height: 16),
-            const Text(
-                'La gestion des factures et moyens de paiement sera disponible ici dès que le module de paiement backend sera activé.'),
+            _InfoTile(
+                icon: Icons.business_outlined,
+                label: 'Organisation',
+                value: orgName),
+            const SizedBox(height: 10),
+            _InfoTile(
+                icon: Icons.mail_outline,
+                label: 'Email de facturation',
+                value: email),
+            const SizedBox(height: 14),
+            Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: .1),
+                    borderRadius: BorderRadius.circular(14)),
+                child: const Row(children: [
+                  Icon(Icons.info_outline, color: AppColors.warning),
+                  SizedBox(width: 10),
+                  Expanded(
+                      child: Text(
+                          'Le portail de paiement sera activé avec le module de facturation.',
+                          style: TextStyle(fontSize: 13)))
+                ])),
           ],
         ),
         actions: [
@@ -474,24 +497,31 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
   Future<void> _showSecurityDialog() async {
     return showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sécurité'),
-        content: Column(
+      builder: (context) => _AccountDialog(
+        icon: Icons.shield_outlined,
+        title: 'Connexion et sécurité',
+        subtitle: 'Contrôle la session actuellement ouverte.',
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.verified_user_outlined),
-              title: const Text('Session authentifiée'),
-              subtitle: const Text('Ton accès est protégé par token sécurisé.'),
-            ),
+            Container(
+                decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: .08),
+                    borderRadius: BorderRadius.circular(14)),
+                child: const ListTile(
+                  leading: const Icon(Icons.verified_user_outlined),
+                  title: const Text('Session authentifiée'),
+                  subtitle:
+                      const Text('Ton accès est protégé par token sécurisé.'),
+                )),
+            const SizedBox(height: 10),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.logout, color: AppColors.danger),
               title: const Text('Déconnecter cet appareil'),
               onTap: () async {
                 Navigator.of(context).pop();
-                await ref.read(tokenStoreProvider).clear();
+                await ref.read(authSessionProvider.notifier).logout();
                 if (mounted) context.go('/login');
               },
             ),
@@ -519,9 +549,11 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
     return showDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Modifier le profil'),
-          content: Column(
+        builder: (context, setDialogState) => _AccountDialog(
+          icon: Icons.person_outline,
+          title: 'Informations personnelles',
+          subtitle: 'Mets à jour les informations visibles dans ton espace.',
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
@@ -550,14 +582,16 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
               onPressed: isSaving
                   ? null
                   : () async {
-                      setState(() => isSaving = true);
+                      setDialogState(() => isSaving = true);
                       try {
                         await ref.read(apiClientProvider).updateAccount({
                           'full_name': fullNameCtrl.text.trim(),
                           'org_name': orgNameCtrl.text.trim(),
                         });
+                        _accountFuture = ref.read(apiClientProvider).account();
                         if (mounted) {
                           Navigator.of(context).pop();
+                          this.setState(() {});
                           NotificationService.success(
                               context, 'Profil mis à jour');
                         }
@@ -567,7 +601,7 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
                               'Erreur lors de la mise à jour du profil');
                         }
                       } finally {
-                        if (mounted) setState(() => isSaving = false);
+                        if (mounted) setDialogState(() => isSaving = false);
                       }
                     },
               child: isSaving
@@ -699,4 +733,118 @@ class _PreferenceItem extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AccountDialog extends StatelessWidget {
+  const _AccountDialog({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+    this.actions = const [],
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget child;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.border),
+            boxShadow: const [
+              BoxShadow(
+                  color: Colors.black54, blurRadius: 40, offset: Offset(0, 18)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.heroGradient,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: Colors.white),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: const TextStyle(
+                              color: AppColors.textSecondary, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
+              ]),
+              const SizedBox(height: 22),
+              Flexible(child: SingleChildScrollView(child: child)),
+              if (actions.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  for (var i = 0; i < actions.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 10),
+                    actions[i],
+                  ],
+                ]),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoTile extends StatelessWidget {
+  const _InfoTile(
+      {required this.icon, required this.label, required this.value});
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: AppColors.surfaceMuted,
+            borderRadius: BorderRadius.circular(14)),
+        child: Row(children: [
+          Icon(icon, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(label,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 11)),
+                Text(value,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+              ])),
+        ]),
+      );
 }

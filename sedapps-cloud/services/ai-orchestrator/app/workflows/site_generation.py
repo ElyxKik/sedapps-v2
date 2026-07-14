@@ -87,12 +87,34 @@ async def _run_agent(
             "warnings": out.warnings,
         },
     )
+    critical_agents = {"designer", "copywriter", "site_planner"}
+    used_fallback = any("fallback used" in str(item).lower() for item in out.warnings)
+    if out.agent in critical_agents and (out.status != "ok" or used_fallback):
+        raise RuntimeError(
+            f"critical agent {out.agent} unavailable: "
+            + ("; ".join(out.warnings) or out.status)
+        )
     return out.agent, out.data, {"in": out.tokens.prompt, "out": out.tokens.completion}
+
+
+def _prompt_safe_brief(raw: dict[str, Any]) -> dict[str, Any]:
+    """Remove large binary data URIs while preserving meaningful onboarding fields."""
+    def clean(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: clean(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [clean(item) for item in value]
+        if isinstance(value, str) and value.startswith("data:"):
+            return "[media uploaded separately]"
+        return value
+
+    return clean(raw)
 
 
 async def _orchestrate(
     job_id: str, project_id: str, tenant_id: str, brief: dict[str, Any], locale: str
 ) -> dict[str, Any]:
+    brief = _prompt_safe_brief(brief)
     core = CoreApiClient()
     core.job_start(job_id)
 
@@ -218,12 +240,40 @@ async def _orchestrate(
         )
 
         async def build_page(index: int, p: dict[str, Any]):
+            page_path = str(p.get("path") or "index.html")
+            page_slug = str(p.get("slug") or p.get("id") or "")
+            copy_pages = (context.get("copywriter") or {}).get("pages") or []
+            page_copy = [
+                item for item in copy_pages
+                if isinstance(item, dict)
+                and str(item.get("slug") or "") in {page_slug, "home" if page_path == "index.html" else ""}
+            ]
+            seo_pages = (context.get("seo") or {}).get("pages") or []
+            page_seo = [
+                item for item in seo_pages
+                if isinstance(item, dict)
+                and str(item.get("path") or "") == page_path
+            ]
+            page_context = {
+                "brief": brief,
+                "generation_rules": rules,
+                "designer": context.get("designer", {}),
+                "copywriter": {"pages": page_copy},
+                "seo": {"pages": page_seo, "meta": (context.get("seo") or {}).get("meta", {})},
+                "site_planner": {
+                    "navigation": site_plan.get("navigation", []),
+                    "pages": [p],
+                    "design_direction": site_plan.get("design_direction", {}),
+                },
+                "strategy_director": context.get("strategy_director", {}),
+                "ux_architect": context.get("ux_architect", {}),
+            }
             inp = AgentInput(
                 project_id=project_id,
                 job_id=job_id,
                 tenant_id=tenant_id,
                 locale=locale,
-                context=context,
+                context=page_context,
                 params={"page": p},
             )
             out = await StaticPageBuilderAgent().run(inp)
@@ -250,7 +300,8 @@ async def _orchestrate(
                 continue
             total_in += out.tokens.prompt
             total_out += out.tokens.completion
-            if out.status != "failed":
+            used_fallback = any("fallback used" in str(item).lower() for item in out.warnings)
+            if out.status == "ok" and not used_fallback:
                 page_outputs.append(out.data)
 
         # Retry séquentiel des pages manquantes (une seule fois)
@@ -261,10 +312,23 @@ async def _orchestrate(
                 out = await build_page(0, p)
                 total_in += out.tokens.prompt
                 total_out += out.tokens.completion
-                if out.status != "failed":
+                used_fallback = any("fallback used" in str(item).lower() for item in out.warnings)
+                if out.status == "ok" and not used_fallback:
                     page_outputs.append(out.data)
             except Exception as e:  # noqa: BLE001
                 log.error("page retry failed for %s: %s", p.get("path"), e)
+
+        built_paths = {page.get("path") for page in page_outputs}
+        still_missing = [
+            str(page.get("path") or "index.html")
+            for page in pages
+            if str(page.get("path") or "index.html") not in built_paths
+        ]
+        if still_missing:
+            raise RuntimeError(
+                "site_generation: pages incomplètes après nouvelle tentative: "
+                + ", ".join(still_missing)
+            )
 
     if not page_outputs:
         raise RuntimeError("site_generation: aucune page HTML n'a pu être générée")
@@ -421,13 +485,16 @@ async def _orchestrate(
     }
 
     qa_score = int((context.get("qa") or {}).get("score", 0) or 0)
+    onboarding_ok = bool(
+        (context.get("qa") or {}).get("onboarding_compliance", {}).get("passed", False)
+    )
     min_score = rules["qa_min_score"]
     if brief.get("premium"):
         premium_score = int((context.get("premium_qa") or {}).get("score", 0) or 0)
         effective_score = min(qa_score, premium_score)
     else:
         effective_score = qa_score
-    status = "success" if effective_score >= min_score else "degraded"
+    status = "success" if effective_score >= min_score and onboarding_ok else "degraded"
 
     core.job_complete(
         job_id,
@@ -515,7 +582,7 @@ def _shared_css(context: dict[str, Any]) -> str:
     ) + "&display=swap"
     font_import = f"@import url('{google_fonts_url}');\n" if fonts_to_load else ""
 
-    return font_import + f""":root{{--primary:{primary};--secondary:{secondary};--accent:{accent};--bg:{bg};--surface:{surface};--text:{text_color};--muted:{muted};--line:#e2e8f0;--radius:{radius_lg};--radius-md:{radius_md};--radius-full:{radius_full};--sp-xl:{sp_xl};--sp-2xl:{sp_2xl};--font-heading:'{font_heading}',system-ui,sans-serif;--font-body:'{font_body}',system-ui,sans-serif}}*{{box-sizing:border-box}}html{{scroll-behavior:smooth}}body{{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}}a{{color:inherit}}.site-header{{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;gap:24px;padding:18px 7vw;background:rgba(255,255,255,.84);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}}.brand{{font-weight:900;text-decoration:none;letter-spacing:-.03em}}.navbar{{display:flex;gap:22px;align-items:center}}.nav-link{{text-decoration:none;color:var(--muted);font-weight:700}}.nav-link:hover{{color:var(--primary)}}.hero,.component-hero-split,.component-hero-centered{{padding:110px 7vw 90px;background:radial-gradient(circle at top right,rgba(37,99,235,.18),transparent 34%),linear-gradient(135deg,#fff,#eff6ff)}}.eyebrow{{color:var(--primary);font-weight:900;letter-spacing:.14em;text-transform:uppercase}}h1{{max-width:980px;font-size:clamp(42px,7vw,84px);line-height:.94;letter-spacing:-.07em;margin:16px 0}}h2{{font-size:clamp(28px,4vw,52px);letter-spacing:-.04em;margin:0 0 18px}}p{{font-size:18px;line-height:1.75;color:#475569}}.button,.btn,button{{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:999px;background:var(--secondary);color:#fff;padding:15px 24px;text-decoration:none;font-weight:900;cursor:pointer;transition:transform .25s ease,box-shadow .25s ease,background .25s ease}}.section,.component-section{{padding:82px 7vw}}.grid,.component-features-grid,.component-gallery-grid{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding:82px 7vw}}.card,.grid article,.component-card,.component-service-card,.component-review-card{{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:32px;box-shadow:0 24px 70px rgba(15,23,42,.08)}}.component-cta-section,.cta{{margin:40px 7vw;padding:54px;border-radius:34px;background:var(--secondary);color:#fff}}.component-cta-section p,.cta p{{color:#cbd5e1}}.component-contact-form,.contact{{margin:50px 7vw;padding:40px;border:1px solid var(--line);border-radius:var(--radius);background:#fff}}form{{display:grid;gap:14px;max-width:680px}}input,textarea,select{{width:100%;border:1px solid #cbd5e1;border-radius:16px;padding:14px 16px;font:inherit}}textarea{{min-height:140px}}.footer,.component-footer{{padding:48px 7vw;text-align:center;color:var(--muted);border-top:1px solid var(--line)}}[data-animate]{{opacity:0;transition-property:opacity,transform;transition-timing-function:cubic-bezier(.22,1,.36,1);transition-duration:var(--motion-duration,.65s);transition-delay:var(--motion-delay,0s);will-change:opacity,transform}}[data-animate].is-visible{{opacity:1;transform:none}}[data-animate='fade-up']{{transform:translate3d(0,28px,0)}}[data-animate='fade-down']{{transform:translate3d(0,-28px,0)}}[data-animate='fade-left']{{transform:translate3d(28px,0,0)}}[data-animate='fade-right']{{transform:translate3d(-28px,0,0)}}[data-animate='zoom-in']{{transform:scale(.96)}}[data-animate='scale-in']{{transform:scale(.92)}}[data-animate='fade-in']{{transform:none}}.motion-lift-hover{{transition:transform .25s ease,box-shadow .25s ease}}.motion-lift-hover:hover{{transform:translate3d(0,-6px,0);box-shadow:0 30px 80px rgba(15,23,42,.14)}}.motion-glow-hover:hover{{box-shadow:0 0 0 1px rgba(37,99,235,.18),0 24px 80px rgba(37,99,235,.22)}}.motion-button-expand:hover{{transform:scale(1.035)}}.motion-underline-slide{{background-image:linear-gradient(currentColor,currentColor);background-size:0 2px;background-position:0 100%;background-repeat:no-repeat;transition:background-size .25s ease}}.motion-underline-slide:hover{{background-size:100% 2px}}.motion-stagger-children>*{{transition-delay:calc(var(--motion-delay,0s) + var(--stagger-index,0)*var(--motion-stagger,.06s))}}.motion-gradient-shift{{background-size:200% 200%;animation:gradientShift 12s ease infinite}}@keyframes gradientShift{{0%,100%{{background-position:0% 50%}}50%{{background-position:100% 50%}}}}@media(max-width:820px){{.navbar{{display:none}}.grid,.component-features-grid,.component-gallery-grid{{grid-template-columns:1fr;padding:54px 6vw}}.hero,.component-hero-split,.component-hero-centered{{padding:78px 6vw 62px}}.site-header{{padding:16px 6vw}}[data-animate]{{transition-duration:.45s;transform:translate3d(0,14px,0)}}}}@media(prefers-reduced-motion:reduce){{*,*::before,*::after{{animation:none!important;transition:none!important;scroll-behavior:auto!important}}[data-animate]{{opacity:1!important;transform:none!important}}}}"""
+    return font_import + f""":root{{--primary:{primary};--secondary:{secondary};--accent:{accent};--bg:{bg};--surface:{surface};--text:{text_color};--muted:{muted};--line:#e2e8f0;--radius:{radius_lg};--radius-md:{radius_md};--radius-full:{radius_full};--sp-xl:{sp_xl};--sp-2xl:{sp_2xl};--font-heading:'{font_heading}',system-ui,sans-serif;--font-body:'{font_body}',system-ui,sans-serif;--font-size-h1:{h1_size};--font-size-h2:{h2_size};--font-size-h3:{h3_size}}}*{{box-sizing:border-box}}html{{scroll-behavior:smooth}}body{{margin:0;font-family:var(--font-body);background:var(--bg);color:var(--text)}}a{{color:inherit}}.site-header{{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;gap:24px;padding:18px 7vw;background:rgba(255,255,255,.84);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}}.brand{{font-weight:900;text-decoration:none;letter-spacing:-.03em}}.navbar{{display:flex;gap:22px;align-items:center}}.nav-link{{text-decoration:none;color:var(--muted);font-weight:700}}.nav-link:hover{{color:var(--primary)}}.hero,.component-hero-split,.component-hero-centered{{padding:110px 7vw 90px;background:radial-gradient(circle at top right,rgba(37,99,235,.18),transparent 34%),linear-gradient(135deg,#fff,#eff6ff)}}.eyebrow{{color:var(--primary);font-weight:900;letter-spacing:.14em;text-transform:uppercase}}h1,h2,h3{{font-family:var(--font-heading)}}h1{{max-width:980px;font-size:clamp(var(--font-size-h1),7vw,84px);line-height:.94;letter-spacing:-.07em;margin:16px 0}}h2{{font-size:clamp(var(--font-size-h2),4vw,52px);letter-spacing:-.04em;margin:0 0 18px}}h3{{font-size:var(--font-size-h3)}}p{{font-size:18px;line-height:1.75;color:#475569}}.button,.btn,button{{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:999px;background:var(--secondary);color:#fff;padding:15px 24px;text-decoration:none;font-weight:900;cursor:pointer;transition:transform .25s ease,box-shadow .25s ease,background .25s ease}}.section,.component-section{{padding:82px 7vw}}.grid,.component-features-grid,.component-gallery-grid{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding:82px 7vw}}.card,.grid article,.component-card,.component-service-card,.component-review-card{{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:32px;box-shadow:0 24px 70px rgba(15,23,42,.08)}}.component-cta-section,.cta{{margin:40px 7vw;padding:54px;border-radius:34px;background:var(--secondary);color:#fff}}.component-cta-section p,.cta p{{color:#cbd5e1}}.component-contact-form,.contact{{margin:50px 7vw;padding:40px;border:1px solid var(--line);border-radius:var(--radius);background:#fff}}form{{display:grid;gap:14px;max-width:680px}}input,textarea,select{{width:100%;border:1px solid #cbd5e1;border-radius:16px;padding:14px 16px;font:inherit}}textarea{{min-height:140px}}.footer,.component-footer{{padding:48px 7vw;text-align:center;color:var(--muted);border-top:1px solid var(--line)}}[data-animate]{{opacity:0;transition-property:opacity,transform;transition-timing-function:cubic-bezier(.22,1,.36,1);transition-duration:var(--motion-duration,.65s);transition-delay:var(--motion-delay,0s);will-change:opacity,transform}}[data-animate].is-visible{{opacity:1;transform:none}}[data-animate='fade-up']{{transform:translate3d(0,28px,0)}}[data-animate='fade-down']{{transform:translate3d(0,-28px,0)}}[data-animate='fade-left']{{transform:translate3d(28px,0,0)}}[data-animate='fade-right']{{transform:translate3d(-28px,0,0)}}[data-animate='zoom-in']{{transform:scale(.96)}}[data-animate='scale-in']{{transform:scale(.92)}}[data-animate='fade-in']{{transform:none}}.motion-lift-hover{{transition:transform .25s ease,box-shadow .25s ease}}.motion-lift-hover:hover{{transform:translate3d(0,-6px,0);box-shadow:0 30px 80px rgba(15,23,42,.14)}}.motion-glow-hover:hover{{box-shadow:0 0 0 1px rgba(37,99,235,.18),0 24px 80px rgba(37,99,235,.22)}}.motion-button-expand:hover{{transform:scale(1.035)}}.motion-underline-slide{{background-image:linear-gradient(currentColor,currentColor);background-size:0 2px;background-position:0 100%;background-repeat:no-repeat;transition:background-size .25s ease}}.motion-stagger-children>*{{transition-delay:calc(var(--motion-delay,0s) + var(--stagger-index,0)*var(--motion-stagger,.06s))}}.motion-gradient-shift{{background-size:200% 200%;animation:gradientShift 12s ease infinite}}@keyframes gradientShift{{0%,100%{{background-position:0% 50%}}50%{{background-position:100% 50%}}}}@media(max-width:820px){{.navbar{{display:none}}.grid,.component-features-grid,.component-gallery-grid{{grid-template-columns:1fr;padding:54px 6vw}}.hero,.component-hero-split,.component-hero-centered{{padding:78px 6vw 62px}}.site-header{{padding:16px 6vw}}[data-animate]{{transition-duration:.45s;transform:translate3d(0,14px,0)}}}}@media(prefers-reduced-motion:reduce){{*,*::before,*::after{{animation:none!important;transition:none!important;scroll-behavior:auto!important}}[data-animate]{{opacity:1!important;transform:none!important}}}}"""
 
 
 def _shared_js() -> str:
@@ -546,7 +613,7 @@ def _apply_animation_assignments(html: str, path: str, animation_director: dict[
             style_parts.append(f"--motion-duration:{duration}s")
             style_parts.append(f"--motion-delay:{delay}s")
         if stagger:
-            attrs.append(f'data-stagger="true"')
+            attrs.append('data-stagger="true"')
             style_parts.append(f"--motion-stagger:{stagger}s")
         if style_parts:
             attrs.append(f'style="{";".join(style_parts)}"')

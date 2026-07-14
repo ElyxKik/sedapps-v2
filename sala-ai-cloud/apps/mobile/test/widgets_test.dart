@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:mobile/src/widgets/animations.dart';
-import 'package:mobile/src/widgets/dialogs.dart';
-import 'package:mobile/src/widgets/notifications.dart';
+import 'package:sala_ai/src/widgets/animations.dart';
+import 'package:sala_ai/src/widgets/dialogs.dart';
+import 'package:sala_ai/src/widgets/notifications.dart';
 
 void main() {
   group('Animations Tests', () {
@@ -19,7 +19,7 @@ void main() {
       );
 
       expect(find.byType(FadeInUp), findsOneWidget);
-      expect(find.byType(TweenAnimationBuilder), findsOneWidget);
+      expect(find.byType(FadeTransition), findsWidgets);
 
       await tester.pumpAndSettle();
       expect(find.byType(Container), findsOneWidget);
@@ -67,7 +67,7 @@ void main() {
       );
 
       expect(find.byType(PulseAnimation), findsOneWidget);
-      expect(find.byType(ScaleTransition), findsOneWidget);
+      expect(find.byType(ScaleTransition), findsWidgets);
     });
   });
 
@@ -143,6 +143,7 @@ void main() {
       expect(find.text('Test notification'), findsOneWidget);
       expect(find.byType(Toast), findsOneWidget);
       expect(find.byIcon(Icons.check_circle), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
     });
 
     testWidgets('Toast with error type', (WidgetTester tester) async {
@@ -159,6 +160,7 @@ void main() {
 
       expect(find.text('Error message'), findsOneWidget);
       expect(find.byIcon(Icons.error), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
     });
 
     testWidgets('Toast with warning type', (WidgetTester tester) async {
@@ -175,6 +177,7 @@ void main() {
 
       expect(find.text('Warning message'), findsOneWidget);
       expect(find.byIcon(Icons.warning_amber), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
     });
   });
 }

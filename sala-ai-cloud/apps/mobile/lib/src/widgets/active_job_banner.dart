@@ -56,9 +56,8 @@ class ActiveJobBanner extends ConsumerWidget {
         String progressMessage = 'Ton site est en cours de création…';
         jobAsync.whenData((job) {
           if (job != null && job.agents.isNotEmpty) {
-            final running = job.agents
-                .where((a) => a.status == 'running')
-                .toList();
+            final running =
+                job.agents.where((a) => a.status == 'running').toList();
             if (running.isNotEmpty) {
               progressMessage = _friendlyAgentMessage(running.last.name);
             }
@@ -131,14 +130,17 @@ class _GenerationBannerState extends State<_GenerationBanner>
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Color.lerp(const Color(0xFF1E40AF), const Color(0xFF2563EB), glow)!,
-                  Color.lerp(const Color(0xFF0EA5E9), const Color(0xFF22D3EE), glow)!,
+                  Color.lerp(
+                      const Color(0xFF1E40AF), const Color(0xFF2563EB), glow)!,
+                  Color.lerp(
+                      const Color(0xFF0EA5E9), const Color(0xFF22D3EE), glow)!,
                 ],
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.15 + glow * 0.2),
+                  color: const Color(0xFF2563EB)
+                      .withValues(alpha: 0.15 + glow * 0.2),
                   blurRadius: 16 + glow * 8,
                   offset: const Offset(0, 4),
                 ),

@@ -3,13 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
-import '../../data/api_client.dart';
 import '../../widgets/animations.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/notifications.dart';
 import '../../widgets/page_scaffold.dart';
 import '../agents/agent_models.dart';
 import '../agents/agent_state.dart';
+import 'data/project_repository.dart';
+import 'domain/project.dart';
 
 class ProjectsPage extends ConsumerStatefulWidget {
   const ProjectsPage({super.key});
@@ -19,12 +20,13 @@ class ProjectsPage extends ConsumerStatefulWidget {
 }
 
 class _ProjectsPageState extends ConsumerState<ProjectsPage> {
-  late Future<List<dynamic>> _projectsFuture;
+  late Future<List<Project>> _projectsFuture;
 
   @override
   void initState() {
     super.initState();
-    _projectsFuture = ref.read(apiClientProvider).projects().then((projects) {
+    _projectsFuture =
+        ref.read(projectRepositoryProvider).list().then((projects) {
       _checkAndRestoreActiveJob(projects);
       return projects;
     });
@@ -32,20 +34,19 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
 
   void _reloadProjects() {
     setState(() {
-      _projectsFuture = ref.read(apiClientProvider).projects().then((projects) {
+      _projectsFuture =
+          ref.read(projectRepositoryProvider).list().then((projects) {
         _checkAndRestoreActiveJob(projects);
         return projects;
       });
     });
   }
 
-  void _checkAndRestoreActiveJob(List<dynamic> projects) {
+  void _checkAndRestoreActiveJob(List<Project> projects) {
     for (final project in projects) {
-      if (project is Map &&
-          project['status'] == 'generating' &&
-          project['active_job_id'] != null) {
-        final jobId = project['active_job_id'].toString();
-        final projectId = project['id'].toString();
+      if (project.isGenerating && project.activeJobId != null) {
+        final jobId = project.activeJobId!;
+        final projectId = project.id;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           final currentJobId = ref.read(currentJobIdProvider);
@@ -75,7 +76,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
         label: const Text('Nouveau site'),
       ),
       children: [
-        FutureBuilder<List<dynamic>>(
+        FutureBuilder<List<Project>>(
           future: _projectsFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -152,12 +153,12 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
                           childAspectRatio: aspectRatio,
                         ),
                         itemBuilder: (context, index) {
-                          final project = projects[index] as Map;
+                          final project = projects[index];
                           return FadeInUp(
                             delay: Duration(milliseconds: index * 100),
                             child: _ProjectCard(
-                              project: Map<String, dynamic>.from(project),
-                              api: ref.read(apiClientProvider),
+                              project: project,
+                              repository: ref.read(projectRepositoryProvider),
                               onDeleted: _reloadProjects,
                             ),
                           );
@@ -176,10 +177,12 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
 
 class _ProjectCard extends StatefulWidget {
   const _ProjectCard(
-      {required this.project, required this.api, required this.onDeleted});
+      {required this.project,
+      required this.repository,
+      required this.onDeleted});
 
-  final Map<String, dynamic> project;
-  final ApiClient api;
+  final Project project;
+  final ProjectRepository repository;
   final VoidCallback onDeleted;
 
   @override
@@ -191,15 +194,14 @@ class _ProjectCardState extends State<_ProjectCard> {
 
   @override
   Widget build(BuildContext context) {
-    final status = widget.project['status']?.toString() ?? 'draft';
-    final isPublished = status == 'published';
+    final isPublished = widget.project.isPublished;
     final color =
         isPublished ? const Color(0xFF10B981) : const Color(0xFFF59E0B);
     final compact = MediaQuery.sizeOf(context).width < 420;
 
     return Card(
       child: InkWell(
-        onTap: () => context.go('/projects/${widget.project['id']}'),
+        onTap: () => context.go('/projects/${widget.project.id}'),
         onHover: (value) => setState(() => _isHovered = value),
         child: Padding(
           padding: EdgeInsets.all(compact ? 14 : 20),
@@ -230,7 +232,7 @@ class _ProjectCardState extends State<_ProjectCard> {
                         PopupMenuItem(
                           child: const Text('Éditer'),
                           onTap: () =>
-                              context.go('/projects/${widget.project['id']}'),
+                              context.go('/projects/${widget.project.id}'),
                         ),
                         PopupMenuItem(
                           child: const Text('Supprimer le site'),
@@ -242,8 +244,7 @@ class _ProjectCardState extends State<_ProjectCard> {
                             confirmText: 'Supprimer',
                             isDangerous: true,
                             onConfirm: () async {
-                              await widget.api.deleteProject(
-                                  widget.project['id'].toString());
+                              await widget.repository.delete(widget.project.id);
                               widget.onDeleted();
                               if (context.mounted)
                                 NotificationService.error(
@@ -257,13 +258,23 @@ class _ProjectCardState extends State<_ProjectCard> {
                 ],
               ),
               const Spacer(),
-              Text(widget.project['name']?.toString() ?? 'Site sans nom',
+              Text(widget.project.name,
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
                       ?.copyWith(fontSize: compact ? 15 : null),
                   maxLines: compact ? 1 : 2,
                   overflow: TextOverflow.ellipsis),
+              if (widget.project.defaultDomain != null) ...[
+                const SizedBox(height: 3),
+                Text(widget.project.defaultDomain!,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: AppColors.skyBlue),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ],
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -271,7 +282,7 @@ class _ProjectCardState extends State<_ProjectCard> {
                       size: 12, color: AppColors.textSecondary),
                   const SizedBox(width: 4),
                   Expanded(
-                      child: Text(_formatDate(widget.project['created_at']),
+                      child: Text(_formatDate(widget.project.createdAt),
                           style: Theme.of(context).textTheme.bodySmall,
                           overflow: TextOverflow.ellipsis)),
                   if (isPublished) ...[
@@ -279,7 +290,10 @@ class _ProjectCardState extends State<_ProjectCard> {
                         size: 12, color: const Color(0xFF10B981)),
                     const SizedBox(width: 4),
                     Text('En ligne',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: const Color(0xFF10B981))),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: const Color(0xFF10B981))),
                   ],
                 ],
               ),
@@ -290,10 +304,9 @@ class _ProjectCardState extends State<_ProjectCard> {
     );
   }
 
-  String _formatDate(dynamic value) {
+  String _formatDate(DateTime? value) {
     if (value == null) return 'Date inconnue';
-    final date = DateTime.tryParse(value.toString());
-    if (date == null) return 'Date inconnue';
+    final date = value;
     return 'Créé le ${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 }

@@ -44,3 +44,27 @@ class OrchestratorClient:
                 },
             )
             r.raise_for_status()
+
+    async def run_agent(
+        self,
+        name: str,
+        *,
+        project_id: str,
+        tenant_id: str,
+        context: dict,
+        params: dict,
+    ) -> dict:
+        async with httpx.AsyncClient(timeout=130.0) as c:
+            response = await c.post(
+                f"{self.base_url}/v1/agents/{name}/run",
+                headers={"X-Internal-Token": self.token},
+                json={
+                    "project_id": project_id,
+                    "tenant_id": tenant_id,
+                    "context": context,
+                    "params": params,
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+            return payload.get("data", payload)

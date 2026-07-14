@@ -86,7 +86,7 @@ Retourne uniquement du JSON strict :
         if not isinstance(parsed, dict):
             raise ValueError("site_planner: expected object")
         brief = inp.context.get("brief", {})
-        stack = str(brief.get("stack") or "").strip().lower()
+        stack = str(brief.get("stack") or "multipage").strip().lower()
         if stack in {"monopage", "onepage", "one-page", "singlepage", "single-page"}:
             stack = "onepage"
         pages = parsed.get("pages")
@@ -125,8 +125,55 @@ Retourne uniquement du JSON strict :
             first = normalized_pages[0]
             first["path"] = "index.html"
             first["slug"] = "index"
+            onboarding_sections = [
+                item for item in (brief.get("sections") or [])
+                if isinstance(item, dict) and item.get("enabled", True)
+            ]
+            if onboarding_sections:
+                first["sections"] = [
+                    {
+                        "id": str(item.get("type") or f"section-{index + 1}"),
+                        "component": str(item.get("type") or "Section"),
+                        "title": str((item.get("data") or {}).get("title") or (item.get("data") or {}).get("headline") or item.get("type") or "Section"),
+                        "intent": "Respecter exactement la section configurée dans l’onboarding",
+                        "data": item.get("data") if isinstance(item.get("data"), dict) else {},
+                    }
+                    for index, item in enumerate(onboarding_sections)
+                ]
             normalized_pages = [first]
-        elif stack == "multipage" and len(normalized_pages) < 2:
+        elif stack == "multipage":
+            requested = brief.get("pages") if isinstance(brief.get("pages"), list) else []
+            if requested:
+                requested_pages = []
+                for index, requested_name in enumerate(requested[:8]):
+                    requested_slug = _slugify(str(requested_name)) or f"page-{index + 1}"
+                    aliases = {requested_slug}
+                    if requested_slug in {"home", "accueil", "index"}:
+                        aliases.update({"home", "accueil", "index"})
+                    existing = next(
+                        (item for item in normalized_pages if item.get("slug") in aliases or item.get("id") in aliases),
+                        None,
+                    )
+                    if existing:
+                        selected = dict(existing)
+                    else:
+                        selected = {
+                            "id": requested_slug,
+                            "title": str(requested_name).replace("-", " ").title(),
+                            "slug": requested_slug,
+                            "path": "index.html" if index == 0 else f"{requested_slug}.html",
+                            "purpose": f"Répondre au besoin de la page {requested_name}",
+                            "seo_description": "",
+                            "components": ["Header", "HeroSplit", "FeaturesGrid", "CTASection", "Footer"],
+                            "sections": [],
+                        }
+                    selected["path"] = "index.html" if index == 0 else f"{requested_slug}.html"
+                    selected["slug"] = "index" if index == 0 else requested_slug
+                    requested_pages.append(selected)
+                normalized_pages = requested_pages
+
+        minimum_multipage = 5 if brief.get("premium") else 3
+        if stack == "multipage" and len(normalized_pages) < minimum_multipage:
             premium = bool(brief.get("premium"))
             extras = [
                 {"id": "services", "title": "Services", "slug": "services", "path": "services.html",
@@ -150,10 +197,17 @@ Retourne uniquement du JSON strict :
                 if extra["path"] not in existing_paths:
                     normalized_pages.append(extra)
                     existing_paths.add(extra["path"])
+                if len(normalized_pages) >= minimum_multipage:
+                    break
+
+        navigation = [
+            {"label": page["title"], "href": page["path"]}
+            for page in normalized_pages[:8]
+        ]
 
         return {
             "site_goal": parsed.get("site_goal") or "site vitrine premium",
-            "navigation": parsed.get("navigation") if isinstance(parsed.get("navigation"), list) else [],
+            "navigation": navigation,
             "pages": normalized_pages[:8],
             "design_direction": parsed.get("design_direction") if isinstance(parsed.get("design_direction"), dict) else {},
         }

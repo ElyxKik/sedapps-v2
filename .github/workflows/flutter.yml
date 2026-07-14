@@ -1,0 +1,28 @@
+name: Flutter
+
+on:
+  push:
+    paths:
+      - 'sala-ai-cloud/apps/mobile/**'
+      - '.github/workflows/flutter.yml'
+  pull_request:
+    paths:
+      - 'sala-ai-cloud/apps/mobile/**'
+      - '.github/workflows/flutter.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sala-ai-cloud/apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter build web --release --dart-define=CORE_API_BASE_URL=https://api.salaai.site --dart-define=MOCK_DATA=false

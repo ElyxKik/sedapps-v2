@@ -114,7 +114,7 @@ Puis un bloc JSON avec le résumé des changements :
         strategy = inp.context.get("strategy_director", {})
 
         messages = [
-            {"role": "system", "content": self.system_prompt(inp)},
+            {"role": "system", "content": self.composed_system_prompt(inp)},
             {"role": "user", "content": self._make_single_file_prompt(file, brief, qa, strategy)},
         ]
         tokens_in = tokens_out = 0

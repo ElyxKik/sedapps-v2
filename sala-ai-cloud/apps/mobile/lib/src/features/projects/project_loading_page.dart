@@ -67,7 +67,9 @@ class _ProjectLoadingPageState extends ConsumerState<ProjectLoadingPage>
     )..repeat();
     _startPolling();
     _msgTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (mounted) setState(() => _waitMsgIndex = (_waitMsgIndex + 1) % _waitMessages.length);
+      if (mounted)
+        setState(
+            () => _waitMsgIndex = (_waitMsgIndex + 1) % _waitMessages.length);
     });
   }
 
@@ -119,8 +121,8 @@ class _ProjectLoadingPageState extends ConsumerState<ProjectLoadingPage>
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                  content:
-                      Text('La création n\'a pas abouti. Réessaie dans un instant.')),
+                  content: Text(
+                      'La création n\'a pas abouti. Réessaie dans un instant.')),
             );
           }
         }

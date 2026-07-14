@@ -51,8 +51,9 @@ class _NewSitePageState extends ConsumerState<NewSitePage> {
       context.go('/projects/${project['id']}');
     } catch (_) {
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('La génération n\'a pas pu démarrer. Vérifie ta connexion et réessaie.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'La génération n\'a pas pu démarrer. Vérifie ta connexion et réessaie.')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -126,7 +127,8 @@ class _FormSection extends StatelessWidget {
             Text('Créons ton site',
                 style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 4),
-            const Text('Réponds à quelques questions. Sala AI prépare une première version adaptée à ton activité.',
+            const Text(
+                'Réponds à quelques questions. Sala AI prépare une première version adaptée à ton activité.',
                 style: TextStyle(color: AppColors.textSecondary)),
             const SizedBox(height: 24),
             Text('Nom de ton activité *',
@@ -179,8 +181,7 @@ class _FormSection extends StatelessWidget {
             FilledButton.icon(
               onPressed: loading ? null : onGenerate,
               icon: const Icon(Icons.rocket_launch, size: 18),
-              label: Text(
-                  loading ? 'Création en cours…' : 'Créer mon site'),
+              label: Text(loading ? 'Création en cours…' : 'Créer mon site'),
               style: FilledButton.styleFrom(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 16),

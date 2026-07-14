@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/2"
 
     DEPLOY_DRY_RUN: bool = True
-    DEPLOY_BASE_DOMAIN: str = "sedapps.cloud"
-    DEPLOY_PUBLIC_BASE_URL: str = "https://sedapps.cloud"
+    DEPLOY_BASE_DOMAIN: str = "salaai.site"
+    DEPLOY_PUBLIC_BASE_URL: str = "https://salaai.site"
     DEPLOY_WORK_DIR: str = "/tmp/sedapps-deploys"
     WEB_RENDERER_SOURCE: str = Field(default="/workspace/apps/web-renderer")
     ASTRO_RENDERER_SOURCE: str = Field(default="/workspace/apps/astro-renderer")
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     OVH_APP_KEY: str = ""
     OVH_APP_SECRET: str = ""
     OVH_CONSUMER_KEY: str = ""
-    OVH_ZONE_NAME: str = "sedapps.cloud"
+    OVH_ZONE_NAME: str = "salaai.site"
 
     OVH_S3_ENDPOINT: str = ""
     OVH_S3_REGION: str = "gra"

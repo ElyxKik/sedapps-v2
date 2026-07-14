@@ -14,6 +14,7 @@ from app.models.ai_job import AgentRun, AiJob, JobStatus
 from app.models.deployment import Deployment, DeploymentStatus
 from app.models.project import Project, ProjectStatus
 from app.models.site_version import SiteVersion
+from app.component_sdk import migrate_page_schema, validate_document
 
 router = APIRouter()
 
@@ -159,10 +160,14 @@ def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(g
         job,
         {
             "step": "complete",
-            "label": "Site généré avec succès"
-            if body.status in (JobStatus.success, JobStatus.degraded)
-            else "Génération échouée",
-            "status": "ok" if body.status in (JobStatus.success, JobStatus.degraded) else "failed",
+            "label": (
+                "Site généré avec succès"
+                if body.status == JobStatus.success
+                else "Résultat incomplet — génération à relancer"
+                if body.status == JobStatus.degraded
+                else "Génération échouée"
+            ),
+            "status": "ok" if body.status == JobStatus.success else "failed",
             "progress": 100,
         },
     )
@@ -170,7 +175,7 @@ def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(g
     project = db.get(Project, job.project_id)
     if (
         project
-        and body.status in (JobStatus.success, JobStatus.degraded)
+        and body.status == JobStatus.success
         and job.workflow == "site_generation"
     ):
         generated_files = body.output.get("generated_files") or body.output.get("files") or []
@@ -180,6 +185,7 @@ def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(g
                 "render_mode": "static_classic",
                 "generated_files": generated_files,
                 "sections": body.output.get("sections", []),
+                "pages": body.output.get("pages", []),
             }
         if body.output.get("form"):
             page_schema["form"] = body.output.get("form")
@@ -189,6 +195,10 @@ def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(g
             page_schema["articles"] = body.output.get("articles")
         seo = body.output.get("seo", {})
         design_tokens = body.output.get("design_tokens", {})
+        component_tree = migrate_page_schema(page_schema, design_tokens)
+        if component_tree.get("pages") and component_tree["pages"][0].get("slots", {}).get("body"):
+            validate_document(component_tree)
+            page_schema["component_tree"] = component_tree
         if page_schema:
             last = (
                 db.query(SiteVersion)
@@ -209,9 +219,11 @@ def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(g
         project.design_tokens = design_tokens or project.design_tokens
         project.status = ProjectStatus.ready
     elif project and body.status in (JobStatus.failed, JobStatus.degraded):
-        project.status = (
-            ProjectStatus.draft if body.status == JobStatus.failed else ProjectStatus.ready
+        has_previous_version = (
+            db.query(SiteVersion.id).filter(SiteVersion.project_id == project.id).first()
+            is not None
         )
+        project.status = ProjectStatus.ready if has_previous_version else ProjectStatus.draft
 
     db.commit()
     return {"ok": True}

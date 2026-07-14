@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
-import '../../data/api_client.dart';
 import '../../widgets/dialogs.dart';
 import '../../widgets/notifications.dart';
-import '../projects/project_workspace_state.dart';
+import '../projects/project_workspace_state.dart' show currentProjectIdProvider;
+import 'data/cms_repository.dart';
+import 'domain/cms_models.dart';
+import 'tabs/content_tabs.dart';
+import 'controllers/article_controller.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CmsPage — intégrée dans le workspace projet
@@ -25,11 +28,14 @@ class _CmsPageState extends ConsumerState<CmsPage> {
   static const _sections = [
     _CmsSection('Articles', Icons.article_outlined, Icons.article_rounded,
         'Articles & catégories', AppColors.skyBlue),
-    _CmsSection('Messages reçus', Icons.dynamic_form_outlined,
-        Icons.dynamic_form_rounded, 'Contact, devis, newsletter',
+    _CmsSection(
+        'Messages reçus',
+        Icons.dynamic_form_outlined,
+        Icons.dynamic_form_rounded,
+        'Contact, devis, newsletter',
         Color(0xFF10B981)),
-    _CmsSection('Avis et commentaires', Icons.comment_outlined, Icons.comment_rounded,
-        'Modération', Color(0xFFF59E0B)),
+    _CmsSection('Avis et commentaires', Icons.comment_outlined,
+        Icons.comment_rounded, 'Modération', Color(0xFFF59E0B)),
     _CmsSection('Pages du site', Icons.web_outlined, Icons.web_rounded,
         'À propos, Contact, Légal', Color(0xFF0EA5E9)),
     _CmsSection('Images et fichiers', Icons.image_outlined, Icons.image_rounded,
@@ -109,13 +115,13 @@ class _CmsPageState extends ConsumerState<CmsPage> {
       case 0:
         return _BlogTab(projectId: projectId);
       case 1:
-        return const _FormsTab();
+        return FormsTab(projectId: projectId);
       case 2:
-        return const _CommentsTab();
+        return CommentsTab(projectId: projectId);
       case 3:
-        return const _PagesTab();
+        return PagesTab(projectId: projectId);
       case 4:
-        return const _MediaTab();
+        return MediaTab(projectId: projectId);
       default:
         return const SizedBox.shrink();
     }
@@ -142,9 +148,7 @@ class _CmsSection {
 
 class _SideNav extends StatelessWidget {
   const _SideNav(
-      {required this.sections,
-      required this.selected,
-      required this.onSelect});
+      {required this.sections, required this.selected, required this.onSelect});
   final List<_CmsSection> sections;
   final int selected;
   final ValueChanged<int> onSelect;
@@ -217,8 +221,7 @@ class _NavItem extends StatelessWidget {
                   Text(section.label,
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color:
-                            selected ? section.color : AppColors.textPrimary,
+                        color: selected ? section.color : AppColors.textPrimary,
                         fontSize: 14,
                       )),
                   Text(section.desc,
@@ -242,9 +245,7 @@ class _NavItem extends StatelessWidget {
 
 class _TopChips extends StatelessWidget {
   const _TopChips(
-      {required this.sections,
-      required this.selected,
-      required this.onSelect});
+      {required this.sections, required this.selected, required this.onSelect});
   final List<_CmsSection> sections;
   final int selected;
   final ValueChanged<int> onSelect;
@@ -264,26 +265,20 @@ class _TopChips extends StatelessWidget {
             onTap: () => onSelect(i),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 160),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: isSel ? s.color : AppColors.surface,
                 borderRadius: BorderRadius.circular(30),
-                border:
-                    Border.all(color: isSel ? s.color : AppColors.border),
+                border: Border.all(color: isSel ? s.color : AppColors.border),
               ),
               child: Row(
                 children: [
-                  Icon(s.icon,
-                      size: 16,
-                      color: isSel ? Colors.white : s.color),
+                  Icon(s.icon, size: 16, color: isSel ? Colors.white : s.color),
                   const SizedBox(width: 6),
                   Text(s.label,
                       style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: isSel
-                              ? Colors.white
-                              : AppColors.textPrimary,
+                          color: isSel ? Colors.white : AppColors.textPrimary,
                           fontSize: 13)),
                 ],
               ),
@@ -411,18 +406,11 @@ class _BlogTab extends ConsumerStatefulWidget {
 }
 
 class _BlogTabState extends ConsumerState<_BlogTab> {
-  late Future<List<dynamic>> _future;
   String? _selectedId;
   final _titleCtrl = TextEditingController();
   final _markdownCtrl = TextEditingController();
   bool _saving = false;
   String _filter = 'all';
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _load();
-  }
 
   @override
   void dispose() {
@@ -431,31 +419,19 @@ class _BlogTabState extends ConsumerState<_BlogTab> {
     super.dispose();
   }
 
-  Future<List<dynamic>> _load() async {
-    final pid = widget.projectId;
-    if (pid == null || pid.isEmpty) return [];
-    return ref.read(apiClientProvider).articles(pid);
-  }
-
-  void _reload() => setState(() => _future = _load());
-
-  void _selectArticle(Map<String, dynamic> a) {
+  void _selectArticle(CmsArticle article) {
     setState(() {
-      _selectedId = a['id']?.toString();
-      _titleCtrl.text = a['title']?.toString() ?? '';
-      _markdownCtrl.text = a['markdown']?.toString() ?? '';
+      _selectedId = article.id;
+      _titleCtrl.text = article.title;
+      _markdownCtrl.text = article.markdown;
     });
   }
 
   Future<void> _create() async {
     final pid = widget.projectId;
     if (pid == null) return;
-    final a = await ref
-        .read(apiClientProvider)
-        .createArticle(pid, 'Nouvel article',
-            '# Nouvel article\n\nCommence à écrire ici.', 'draft');
+    final a = await ref.read(cmsArticleControllerProvider).create(pid);
     _selectArticle(a);
-    _reload();
     if (mounted) NotificationService.success(context, 'Article créé');
   }
 
@@ -465,14 +441,13 @@ class _BlogTabState extends ConsumerState<_BlogTab> {
     if (pid == null || aid == null) return;
     setState(() => _saving = true);
     try {
-      final a = await ref.read(apiClientProvider).updateArticle(pid, aid,
+      final a = await ref.read(cmsArticleControllerProvider).save(pid, aid,
           title: _titleCtrl.text.trim().isEmpty
               ? 'Article sans titre'
               : _titleCtrl.text.trim(),
           markdown: _markdownCtrl.text,
           status: status);
       _selectArticle(a);
-      _reload();
       if (mounted)
         NotificationService.success(
             context,
@@ -488,13 +463,12 @@ class _BlogTabState extends ConsumerState<_BlogTab> {
     final pid = widget.projectId;
     final aid = _selectedId;
     if (pid == null || aid == null) return;
-    await ref.read(apiClientProvider).deleteArticle(pid, aid);
+    await ref.read(cmsArticleControllerProvider).delete(pid, aid);
     setState(() {
       _selectedId = null;
       _titleCtrl.clear();
       _markdownCtrl.clear();
     });
-    _reload();
     if (mounted) NotificationService.error(context, 'Article supprimé');
   }
 
@@ -508,100 +482,78 @@ class _BlogTabState extends ConsumerState<_BlogTab> {
         ),
       );
     }
-    return FutureBuilder<List<dynamic>>(
-      future: _future,
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Card(
+    return ref.watch(cmsArticlesProvider(widget.projectId!)).when(
+          loading: () => const Card(
               child: Padding(
                   padding: EdgeInsets.all(40),
-                  child: Center(child: CircularProgressIndicator())));
-        }
-        if (snap.hasError) {
-          return Card(
+                  child: Center(child: CircularProgressIndicator()))),
+          error: (error, _) => Card(
               child: Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Text('Erreur : ${snap.error}',
-                      style: const TextStyle(color: AppColors.danger))));
-        }
-        final all = snap.data ?? [];
-        final filtered = _filter == 'all'
-            ? all
-            : all
-                .where((a) =>
-                    (a as Map)['status']?.toString() == _filter)
-                .toList();
+                  child: Text('Erreur : $error',
+                      style: const TextStyle(color: AppColors.danger)))),
+          data: (all) {
+            final filtered = _filter == 'all'
+                ? all
+                : all.where((a) => a.status.name == _filter).toList();
 
-        // Auto-select first if none
-        if (_selectedId == null && all.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _selectArticle(Map<String, dynamic>.from(all.first as Map));
-          });
-        }
+            // Auto-select first if none
+            if (_selectedId == null && all.isNotEmpty) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _selectArticle(all.first);
+              });
+            }
 
-        Map<String, dynamic>? selected;
-        for (final a in all) {
-          if ((a as Map)['id']?.toString() == _selectedId) {
-            selected = Map<String, dynamic>.from(a);
-            break;
-          }
-        }
-
-        return LayoutBuilder(builder: (ctx, constraints) {
-          final wide = constraints.maxWidth > 740;
-          final list = _ArticlesList(
-            articles: filtered,
-            allCount: all.length,
-            publishedCount: all
-                .where((a) =>
-                    (a as Map)['status']?.toString() == 'published')
-                .length,
-            draftCount: all
-                .where(
-                    (a) => (a as Map)['status']?.toString() == 'draft')
-                .length,
-            selectedId: _selectedId,
-            filter: _filter,
-            onFilterChange: (f) => setState(() => _filter = f),
-            onSelect: _selectArticle,
-            onCreate: _create,
-          );
-          final editor = _ArticleEditor(
-            hasSelection: _selectedId != null,
-            titleController: _titleCtrl,
-            markdownController: _markdownCtrl,
-            saving: _saving,
-            onPublish: () => _save('published'),
-            onDraft: () => _save('draft'),
-            onDelete: () => showConfirmDialog(
-              context,
-              title: 'Supprimer l\'article',
-              message: 'Cette action est irréversible.',
-              confirmText: 'Supprimer',
-              isDangerous: true,
-              onConfirm: _delete,
-            ),
-          );
-          if (!wide) {
-            return SingleChildScrollView(
-              child: Column(children: [
-                list,
-                const SizedBox(height: 16),
-                editor,
-              ]),
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: 300, child: list),
-              const SizedBox(width: 14),
-              Expanded(child: editor),
-            ],
-          );
-        });
-      },
-    );
+            return LayoutBuilder(builder: (ctx, constraints) {
+              final wide = constraints.maxWidth > 740;
+              final list = _ArticlesList(
+                articles: filtered,
+                allCount: all.length,
+                publishedCount: all.where((a) => a.isPublished).length,
+                draftCount:
+                    all.where((a) => a.status == ArticleStatus.draft).length,
+                selectedId: _selectedId,
+                filter: _filter,
+                onFilterChange: (f) => setState(() => _filter = f),
+                onSelect: _selectArticle,
+                onCreate: _create,
+              );
+              final editor = _ArticleEditor(
+                hasSelection: _selectedId != null,
+                titleController: _titleCtrl,
+                markdownController: _markdownCtrl,
+                saving: _saving,
+                onPublish: () => _save('published'),
+                onDraft: () => _save('draft'),
+                onDelete: () => showConfirmDialog(
+                  context,
+                  title: 'Supprimer l\'article',
+                  message: 'Cette action est irréversible.',
+                  confirmText: 'Supprimer',
+                  isDangerous: true,
+                  onConfirm: _delete,
+                ),
+              );
+              if (!wide) {
+                return SingleChildScrollView(
+                  child: Column(children: [
+                    list,
+                    const SizedBox(height: 16),
+                    editor,
+                  ]),
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 300, child: list),
+                  const SizedBox(width: 14),
+                  Expanded(child: editor),
+                ],
+              );
+            });
+          },
+        );
   }
 }
 
@@ -620,12 +572,12 @@ class _ArticlesList extends StatelessWidget {
     required this.onCreate,
   });
 
-  final List<dynamic> articles;
+  final List<CmsArticle> articles;
   final int allCount, publishedCount, draftCount;
   final String? selectedId;
   final String filter;
   final ValueChanged<String> onFilterChange;
-  final ValueChanged<Map<String, dynamic>> onSelect;
+  final ValueChanged<CmsArticle> onSelect;
   final VoidCallback onCreate;
 
   @override
@@ -640,8 +592,8 @@ class _ArticlesList extends StatelessWidget {
               children: [
                 const Expanded(
                   child: Text('Articles de blog',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w800)),
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
                 ),
                 FilledButton.icon(
                   onPressed: onCreate,
@@ -683,16 +635,14 @@ class _ArticlesList extends StatelessWidget {
                         style: TextStyle(color: AppColors.textSecondary))),
               )
             else
-              for (final item in articles)
+              for (final article in articles)
                 Builder(builder: (context) {
-                  final a = Map<String, dynamic>.from(item as Map);
-                  final status = a['status']?.toString() ?? 'draft';
-                  final isSelected = a['id']?.toString() == selectedId;
-                  final statusColor = status == 'published'
+                  final isSelected = article.id == selectedId;
+                  final statusColor = article.isPublished
                       ? const Color(0xFF10B981)
                       : AppColors.textSecondary;
                   return GestureDetector(
-                    onTap: () => onSelect(a),
+                    onTap: () => onSelect(article),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 140),
                       margin: const EdgeInsets.only(bottom: 8),
@@ -710,9 +660,7 @@ class _ArticlesList extends StatelessWidget {
                       ),
                       child: Row(children: [
                         Icon(
-                          status == 'published'
-                              ? Icons.public
-                              : Icons.edit_note,
+                          article.isPublished ? Icons.public : Icons.edit_note,
                           color: statusColor,
                           size: 20,
                         ),
@@ -721,7 +669,7 @@ class _ArticlesList extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(a['title']?.toString() ?? 'Article',
+                              Text(article.title,
                                   style: TextStyle(
                                       fontWeight: FontWeight.w600,
                                       fontSize: 13,
@@ -731,10 +679,7 @@ class _ArticlesList extends StatelessWidget {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis),
                               const SizedBox(height: 2),
-                              Text(
-                                  status == 'published'
-                                      ? 'Publié'
-                                      : 'Brouillon',
+                              Text(article.isPublished ? 'Publié' : 'Brouillon',
                                   style: TextStyle(
                                       fontSize: 11, color: statusColor)),
                             ],
@@ -780,12 +725,10 @@ class _FilterChip extends StatelessWidget {
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 12,
-                  color:
-                      selected ? Colors.white : AppColors.textPrimary)),
+                  color: selected ? Colors.white : AppColors.textPrimary)),
           const SizedBox(width: 5),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
             decoration: BoxDecoration(
               color: selected
                   ? Colors.white.withValues(alpha: 0.25)
@@ -796,8 +739,7 @@ class _FilterChip extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color:
-                        selected ? Colors.white : AppColors.skyBlueDark)),
+                    color: selected ? Colors.white : AppColors.skyBlueDark)),
           ),
         ]),
       ),
@@ -845,8 +787,7 @@ class _ArticleEditor extends StatelessWidget {
                       SizedBox(height: 12),
                       Text('Sélectionne un article ou crée-en un nouveau.',
                           textAlign: TextAlign.center,
-                          style:
-                              TextStyle(color: AppColors.textSecondary)),
+                          style: TextStyle(color: AppColors.textSecondary)),
                     ],
                   ),
                 ),
@@ -869,8 +810,7 @@ class _ArticleEditor extends StatelessWidget {
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
                 decoration: const InputDecoration(
                   labelText: 'Contenu (Markdown)',
-                  hintText:
-                      '# Titre\n\nÉcris ton article en Markdown...',
+                  hintText: '# Titre\n\nÉcris ton article en Markdown...',
                   alignLabelWithHint: true,
                 ),
               ),
@@ -909,82 +849,6 @@ class _ArticleEditor extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ONGLET 2 — Formulaires
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _FormsTab extends StatelessWidget {
-  const _FormsTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return _ComingSoonTab(
-      icon: Icons.dynamic_form_outlined,
-      color: const Color(0xFF10B981),
-      title: 'Formulaires de contact',
-      description:
-          'Consulte et exporte les soumissions de tes formulaires générés avec ton site. Cette section sera alimentée automatiquement dès que ton site reçoit des messages.',
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ONGLET 3 — Commentaires
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _CommentsTab extends StatelessWidget {
-  const _CommentsTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return _ComingSoonTab(
-      icon: Icons.comment_outlined,
-      color: const Color(0xFFF59E0B),
-      title: 'Commentaires',
-      description:
-          'Les commentaires laissés sur tes articles de blog apparaîtront ici pour modération. Active les commentaires depuis l\'éditeur de ton site pour commencer à en recevoir.',
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ONGLET 4 — Pages
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _PagesTab extends StatelessWidget {
-  const _PagesTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return _ComingSoonTab(
-      icon: Icons.web_outlined,
-      color: const Color(0xFF0EA5E9),
-      title: 'Pages statiques',
-      description:
-          'Les pages de ton site (À propos, Contact, Mentions légales…) sont générées automatiquement par l\'IA. Utilise l\'Éditeur visuel pour modifier leur contenu.',
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ONGLET 5 — Médias
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _MediaTab extends StatelessWidget {
-  const _MediaTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return _ComingSoonTab(
-      icon: Icons.image_outlined,
-      color: const Color(0xFF22D3EE),
-      title: 'Médiathèque',
-      description:
-          'Importe et gère tes images, vidéos et documents. Les médias uploadés seront utilisables directement dans l\'éditeur de ton site.',
     );
   }
 }
@@ -1034,9 +898,7 @@ class _ComingSoonTab extends StatelessWidget {
               description,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  height: 1.55),
+                  color: AppColors.textSecondary, fontSize: 13, height: 1.55),
             ),
           ],
         ),

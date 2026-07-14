@@ -4,12 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
 import '../../data/api_client.dart';
+import '../../layout/app_shell.dart';
 import '../agents/agent_state.dart';
-import '../chat/chat_page.dart';
 import '../cms/cms_page.dart';
 import '../editor/editor_page.dart';
 import '../preview/preview_page.dart';
 import 'project_workspace_state.dart';
+import 'data/project_repository.dart';
 import '../publish/publish_page.dart';
 
 class ProjectDetailPage extends ConsumerStatefulWidget {
@@ -40,10 +41,12 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
 
   Future<void> _loadProject() async {
     try {
-      final data = await ref.read(apiClientProvider).project(widget.projectId);
+      final project =
+          await ref.read(projectRepositoryProvider).get(widget.projectId);
+      final data = project.toJson();
       if (!mounted) return;
       setState(() {
-        _projectName = data['name']?.toString();
+        _projectName = project.name;
       });
       ref.read(projectWorkspaceProvider.notifier).syncFromProject(data);
       // Log brief pour debug
@@ -52,12 +55,14 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
         debugPrint('✓ Brief chargé: $brief');
       }
       // Si le projet est en cours de génération, restaurer le job actif
-      if (data['status'] == 'generating' && data['active_job_id'] != null) {
-        final jobId = data['active_job_id'].toString();
+      if (project.isGenerating && project.activeJobId != null) {
+        final jobId = project.activeJobId!;
         final currentJobId = ref.read(currentJobIdProvider);
         if (currentJobId != jobId) {
           ref.read(currentJobIdProvider.notifier).state = jobId;
-          _openWorkspace(_WorkspacePanel.chat);
+          // La génération continue en arrière-plan. L'ancien chat global n'est
+          // plus une surface d'édition : les demandes IA sont contextuelles
+          // dans l'éditeur de composants.
         }
       } else {
         ref.read(currentJobIdProvider.notifier).state = null;
@@ -129,6 +134,9 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
   }
 
   Future<void> _openWorkspace(_WorkspacePanel panel) {
+    // Give the editor, preview, CMS and publishing workspace the maximum
+    // horizontal room. The user can reopen the sidebar from its compact rail.
+    ref.read(sidebarExpandedProvider.notifier).state = false;
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -173,8 +181,9 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
     if (newName == null || newName.isEmpty || !mounted) return;
     setState(() => _renaming = true);
     try {
-      await ref.read(apiClientProvider).updateProject(
-          widget.projectId, {'name': newName});
+      await ref
+          .read(apiClientProvider)
+          .updateProject(widget.projectId, {'name': newName});
       if (!mounted) return;
       setState(() => _projectName = newName);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -183,7 +192,8 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Impossible de renommer le site. R\u00e9essaie.')),
+        const SnackBar(
+            content: Text('Impossible de renommer le site. R\u00e9essaie.')),
       );
     } finally {
       if (mounted) setState(() => _renaming = false);
@@ -213,19 +223,20 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
     if (confirmed != true || !mounted) return;
     setState(() => _regenerating = true);
     try {
-      final job = await ref
-          .read(apiClientProvider)
-          .generateSite(widget.projectId);
+      final job =
+          await ref.read(apiClientProvider).generateSite(widget.projectId);
       final jobId = job['job_id']?.toString() ?? job['id']?.toString();
       ref.read(currentJobIdProvider.notifier).state = jobId;
       ref.read(currentJobProjectIdProvider.notifier).state = widget.projectId;
       _autoSwitched = false;
       if (!mounted) return;
-      _openWorkspace(_WorkspacePanel.chat);
+      _openWorkspace(_WorkspacePanel.editor);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Impossible de lancer la r\u00e9g\u00e9n\u00e9ration. R\u00e9essaie.')),
+        const SnackBar(
+            content: Text(
+                'Impossible de lancer la r\u00e9g\u00e9n\u00e9ration. R\u00e9essaie.')),
       );
     } finally {
       if (mounted) setState(() => _regenerating = false);
@@ -279,23 +290,17 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
 }
 
 enum _WorkspacePanel {
-  chat(
-    title: 'Modifier le site',
-    subtitle: 'Demande des modifications à Sala AI en langage simple.',
-    icon: Icons.auto_fix_high,
-    color: AppColors.skyBlue,
+  editor(
+    title: 'Éditeur de composants',
+    subtitle: 'Sélectionne un bloc, modifie ses propriétés ou utilise son IA.',
+    icon: Icons.account_tree_outlined,
+    color: Color(0xFF14B8A6),
   ),
   preview(
     title: 'Aperçu',
     subtitle: 'Visualise ton site en plein écran.',
     icon: Icons.visibility_outlined,
     color: Color(0xFF0EA5E9),
-  ),
-  editor(
-    title: 'Éditeur',
-    subtitle: 'Modifie les textes, les couleurs et le style de ton site.',
-    icon: Icons.web_outlined,
-    color: Color(0xFF14B8A6),
   ),
   cms(
     title: 'Contenus',
@@ -388,12 +393,14 @@ class _ProjectHero extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        projectName != null ? 'Espace site - $projectName' : 'Espace site',
+                        projectName != null
+                            ? 'Espace site - $projectName'
+                            : 'Espace site',
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Ouvre chaque espace en plein écran : chat, aperçu, articles, éditeur ou publication.',
+                        'Construis le site avec l’éditeur structuré, puis gère ses contenus et sa publication.',
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
@@ -598,9 +605,8 @@ class _WorkspaceModal extends StatelessWidget {
 
   Widget _panelContent(_WorkspacePanel panel) {
     return switch (panel) {
-      _WorkspacePanel.chat => const ChatPage(),
-      _WorkspacePanel.preview => const PreviewPage(),
       _WorkspacePanel.editor => const EditorPage(),
+      _WorkspacePanel.preview => const PreviewPage(),
       _WorkspacePanel.cms => const CmsPage(),
       _WorkspacePanel.publish => const PublishPage(),
     };

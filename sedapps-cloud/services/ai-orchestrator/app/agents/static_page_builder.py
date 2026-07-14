@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from html import unescape
 from typing import Any
 
 from app.agents.base import AgentInput, AgentOutput, BaseAgent, TokenUsage
@@ -9,6 +10,10 @@ from app.llm.deepseek import LLMError
 
 _HTML_FENCE_RE = re.compile(r"```html\s*([\s\S]*?)```", re.IGNORECASE)
 _JSON_FENCE_RE = re.compile(r"```json\s*([\s\S]*?)```", re.IGNORECASE)
+
+
+def _normalized_identifier(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value).lower())
 
 
 class StaticPageBuilderAgent(BaseAgent):
@@ -31,6 +36,10 @@ Contraintes HTML :
 - Icônes SVG inline professionnelles pour un rendu ultra-premium.
 - Jamais d'emoji sauf demande explicite dans le brief.
 - Pas de lorem ipsum, pas de placeholder, pas de TODO. Contenu entièrement rédigé, persuasif, adapté au secteur.
+- Chaque page marketing doit contenir au moins 3 sections substantielles, 180 mots utiles et 2 images pertinentes avec alt descriptif.
+- Une page de contact doit contenir au moins 1 image, des coordonnées et un formulaire réellement complet.
+- Utilise des URLs d'images HTTPS stables (Unsplash source avec paramètres explicites autorisé). N'invente jamais un fichier local absent.
+- Respecte toutes les sections demandées dans le brief. Ne fusionne ou ne supprime aucune section activée.
 - Si brief.premium == true : esthétique maximale, micro-détails, storytelling immersif.
 
 FORMAT DE RÉPONSE OBLIGATOIRE — deux blocs séparés, dans cet ordre exact :
@@ -98,7 +107,9 @@ IMPORTANT : Le HTML doit être dans le bloc ```html et les métadonnées dans le
                 parts.append(f"Architecture UX (respecte cette hiérarchie de conversion) :\n{json.dumps(ux_summary, ensure_ascii=False, indent=2)}\n")
 
         parts.append(
-            "Génère cette page en DEUX blocs séparés : ```html ... ``` puis ```json ... ```"
+            "Génère cette page en DEUX blocs séparés : ```html ... ``` puis ```json ... ```. "
+            "Le JSON doit recenser TOUTES les sections réellement présentes dans le HTML. "
+            "Avant de répondre, vérifie le nombre de sections, d'images, la richesse du texte et la conformité au brief."
         )
         return "\n".join(parts)
 
@@ -108,7 +119,7 @@ IMPORTANT : Le HTML doit être dans le bloc ```html et les métadonnées dans le
         warnings: list[str] = []
         max_retries = 2
         messages = [
-            {"role": "system", "content": self.system_prompt(inp)},
+            {"role": "system", "content": self.composed_system_prompt(inp)},
             {"role": "user", "content": self.user_prompt(inp)},
         ]
         tokens_prompt = tokens_completion = 0
@@ -187,23 +198,112 @@ IMPORTANT : Le HTML doit être dans le bloc ```html et les métadonnées dans le
         else:
             html = html_match.group(1).strip()
 
-        if "<!doctype html" not in html.lower():
+        lower_html = html.lower()
+        if "<!doctype html" not in lower_html:
             raise ValueError("static_page_builder: html block missing <!doctype html>")
+        if "</html>" not in lower_html or "</body>" not in lower_html:
+            raise ValueError("static_page_builder: truncated or incomplete HTML")
 
         # Extract JSON metadata block
         sections: list[dict[str, Any]] = []
         path = str(page.get("path") or "index.html").strip().lstrip("/")
 
         json_match = _JSON_FENCE_RE.search(text)
-        if json_match:
-            try:
-                meta = json.loads(json_match.group(1).strip())
-                if isinstance(meta, dict):
-                    path = str(meta.get("path") or path).strip().lstrip("/")
-                    if isinstance(meta.get("sections"), list):
-                        sections = meta["sections"]
-            except json.JSONDecodeError:
-                pass  # metadata block is optional
+        if not json_match:
+            raise ValueError("static_page_builder: required JSON metadata block missing")
+        try:
+            meta = json.loads(json_match.group(1).strip())
+        except json.JSONDecodeError as exc:
+            raise ValueError("static_page_builder: invalid JSON metadata") from exc
+        if not isinstance(meta, dict) or not isinstance(meta.get("sections"), list):
+            raise ValueError("static_page_builder: metadata sections missing")
+        path = str(meta.get("path") or path).strip().lstrip("/")
+        sections = meta["sections"]
+
+        planned_sections = page.get("sections") if isinstance(page.get("sections"), list) else []
+        planned_components = [
+            item for item in (page.get("components") or [])
+            if str(item).lower() not in {"header", "footer"}
+        ]
+        enabled_onboarding = [
+            item for item in (inp.context.get("brief", {}).get("sections") or [])
+            if isinstance(item, dict) and item.get("enabled", True)
+        ]
+        expected = len(planned_sections) or len(planned_components)
+        if path == "index.html" and inp.context.get("brief", {}).get("stack") == "onepage":
+            expected = max(expected, len(enabled_onboarding))
+        minimum_sections = max(3, expected)
+        html_section_count = len(re.findall(r"<section\b", html, re.IGNORECASE))
+        if html_section_count < minimum_sections or len(sections) < minimum_sections:
+            raise ValueError(
+                f"static_page_builder: incomplete sections ({html_section_count} HTML / {len(sections)} metadata, expected {minimum_sections})"
+            )
+
+        if path == "index.html" and inp.context.get("brief", {}).get("stack") == "onepage":
+            metadata_identifiers = {
+                _normalized_identifier(section.get(key))
+                for section in sections
+                if isinstance(section, dict)
+                for key in ("id", "component")
+                if section.get(key)
+            }
+            missing_section_types = []
+            for item in enabled_onboarding:
+                requested_type = _normalized_identifier(item.get("type"))
+                if requested_type and not any(
+                    requested_type in identifier or identifier in requested_type
+                    for identifier in metadata_identifiers
+                ):
+                    missing_section_types.append(str(item.get("type")))
+            if missing_section_types:
+                raise ValueError(
+                    "static_page_builder: onboarding section types missing ("
+                    + ", ".join(missing_section_types)
+                    + ")"
+                )
+
+            searchable_html = unescape(
+                re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
+            ).lower()
+            missing_section_values = []
+            for item in enabled_onboarding:
+                data = item.get("data") if isinstance(item.get("data"), dict) else {}
+                for key in ("headline", "title", "description", "body", "cta_text"):
+                    value = data.get(key)
+                    if isinstance(value, str) and len(value.strip()) >= 3 and value.strip().lower() not in searchable_html:
+                        missing_section_values.append(value.strip())
+            if missing_section_values:
+                raise ValueError(
+                    "static_page_builder: onboarding content missing ("
+                    + ", ".join(missing_section_values[:3])
+                    + ")"
+                )
+        minimum_images = 1 if "contact" in path else 2
+        image_count = len(re.findall(r"<img\b", html, re.IGNORECASE))
+        if image_count < minimum_images:
+            raise ValueError(
+                f"static_page_builder: insufficient images ({image_count}, expected {minimum_images})"
+            )
+        images_without_alt = len(
+            re.findall(r"<img(?![^>]*\balt\s*=)[^>]*>", html, re.IGNORECASE)
+        )
+        if images_without_alt:
+            raise ValueError(
+                f"static_page_builder: images without alt text ({images_without_alt})"
+            )
+        text_only = re.sub(
+            r"<script[\s\S]*?</script>|<style[\s\S]*?</style>",
+            " ",
+            html,
+            flags=re.IGNORECASE,
+        )
+        text_only = unescape(re.sub(r"<[^>]+>", " ", text_only))
+        word_count = len(re.findall(r"\b\w{2,}\b", text_only, re.UNICODE))
+        minimum_words = 100 if "contact" in path else 180
+        if word_count < minimum_words:
+            raise ValueError(
+                f"static_page_builder: content too thin ({word_count} words, expected {minimum_words})"
+            )
 
         # Inject required assets if missing
         if "cdn.tailwindcss.com" not in html:
@@ -222,7 +322,6 @@ IMPORTANT : Le HTML doit être dans le bloc ```html et les métadonnées dans le
     def fallback(self, inp: AgentInput, error: str) -> dict[str, Any]:
         brief = inp.context.get("brief", {})
         plan = inp.context.get("site_planner", {})
-        designer = inp.context.get("designer", {})
         page = inp.params.get("page", {})
         business = brief.get("business_name") or brief.get("name") or "Votre marque"
         title = page.get("title") or business
@@ -234,11 +333,6 @@ IMPORTANT : Le HTML doit être dans le bloc ```html et les métadonnées dans le
             {"label": "Services", "href": "services.html"},
             {"label": "Contact", "href": "contact.html"},
         ]
-        # Lire les tokens du designer si disponibles
-        palette = (designer.get("palette") or {}) if isinstance(designer, dict) else {}
-        primary = palette.get("primary") or "#6366f1"
-        secondary = palette.get("secondary") or "#1e1b4b"
-
         nav_html = "".join(
             f'<a class="text-gray-600 hover:text-indigo-600 transition font-medium" href="{item.get("href", "#")}">'
             f'{item.get("label", "Page")}</a>'

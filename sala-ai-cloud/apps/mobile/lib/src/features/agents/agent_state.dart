@@ -66,4 +66,3 @@ final currentJobProvider = StreamProvider<AiJobView?>((ref) async* {
     await Future<void>.delayed(const Duration(seconds: 2));
   }
 });
-

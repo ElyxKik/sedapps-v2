@@ -2,32 +2,89 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/config.dart';
+import '../core/api_exception.dart';
+import '../features/auth/auth_session.dart';
 import 'mock_data.dart';
 import 'token_store.dart';
 
-final tokenStoreProvider = Provider<TokenStore>((ref) => TokenStore());
-
 final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient(ref.watch(tokenStoreProvider));
+  return ApiClient(
+    ref.watch(tokenStoreProvider),
+    onSessionExpired: () => ref.read(authSessionProvider.notifier).expired(),
+  );
 });
 
 class ApiClient {
-  ApiClient(this._tokenStore)
+  ApiClient(this._tokenStore, {required this.onSessionExpired})
       : dio = Dio(BaseOptions(
             baseUrl: AppConfig.coreApiBaseUrl,
             connectTimeout: const Duration(seconds: 15))) {
-    dio.interceptors
-        .add(InterceptorsWrapper(onRequest: (options, handler) async {
-      final token = await _tokenStore.accessToken();
-      if (token != null) {
-        options.headers['Authorization'] = 'Bearer $token';
-      }
-      handler.next(options);
-    }));
+    dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final token = await _tokenStore.accessToken();
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        handler.next(options);
+      },
+      onError: (error, handler) async {
+        final request = error.requestOptions;
+        final canRefresh = error.response?.statusCode == 401 &&
+            request.path != '/v1/auth/refresh' &&
+            request.extra['retried'] != true;
+        if (canRefresh && await _refreshAccessToken()) {
+          try {
+            request.extra['retried'] = true;
+            request.headers['Authorization'] =
+                'Bearer ${await _tokenStore.accessToken()}';
+            return handler.resolve(await dio.fetch(request));
+          } on DioException catch (retryError) {
+            return handler.reject(retryError);
+          }
+        }
+        if (error.response?.statusCode == 401) {
+          await _tokenStore.clear();
+          onSessionExpired();
+        }
+        handler.reject(DioException(
+          requestOptions: request,
+          response: error.response,
+          type: error.type,
+          error: ApiException.fromDio(error),
+          message: ApiException.fromDio(error).message,
+        ));
+      },
+    ));
   }
 
   final TokenStore _tokenStore;
+  final void Function() onSessionExpired;
   final Dio dio;
+  Future<bool>? _refreshing;
+
+  Future<bool> _refreshAccessToken() {
+    return _refreshing ??=
+        _performRefresh().whenComplete(() => _refreshing = null);
+  }
+
+  Future<bool> _performRefresh() async {
+    final token = await _tokenStore.refreshToken();
+    if (token == null) return false;
+    try {
+      final response =
+          await Dio(BaseOptions(baseUrl: dio.options.baseUrl)).post(
+        '/v1/auth/refresh',
+        data: {'refresh_token': token},
+      );
+      await _tokenStore.save(
+        accessToken: response.data['access_token'] as String,
+        refreshToken: response.data['refresh_token'] as String,
+      );
+      return true;
+    } on DioException {
+      return false;
+    }
+  }
 
   Future<void> login(String email, String password) async {
     if (useMockData) {
@@ -97,9 +154,17 @@ class ApiClient {
     return res.data as Map<String, dynamic>;
   }
 
-  String previewUrl(String nonce, {bool edit = false}) {
+  String previewUrl(String nonce, {bool edit = false, String? page}) {
     final base = dio.options.baseUrl.replaceAll(RegExp(r'/$'), '');
-    return '$base/v1/p/$nonce/index.html${edit ? '?edit=1' : ''}';
+    final params = <String, String>{
+      if (edit) 'edit': '1',
+      if (edit) 'structured': '1',
+      if (page != null && page.isNotEmpty) 'page': page,
+    };
+    final query = params.entries
+        .map((entry) => '${entry.key}=${Uri.encodeQueryComponent(entry.value)}')
+        .join('&');
+    return '$base/v1/p/$nonce/index.html${query.isEmpty ? '' : '?$query'}';
   }
 
   Future<Map<String, dynamic>> account() async {
@@ -118,8 +183,7 @@ class ApiClient {
         'reset_at': null,
       };
     }
-    return (await dio.get('/v1/credits/wallet')).data
-        as Map<String, dynamic>;
+    return (await dio.get('/v1/credits/wallet')).data as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> creditEstimate(
@@ -239,23 +303,69 @@ class ApiClient {
     return (await dio.get('/v1/jobs/$jobId')).data as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> deploySite(String projectId) async {
+  Future<Map<String, dynamic>> deploySite(String projectId,
+      {String? customDomain}) async {
     if (useMockData) {
       return {
         'deployment_id': 'deploy-${DateTime.now().millisecondsSinceEpoch}',
         'status': 'pending'
       };
     }
-    return (await dio.post('/v1/projects/$projectId/deploy', data: {})).data
-        as Map<String, dynamic>;
+    return (await dio.post('/v1/projects/$projectId/deploy', data: {
+      if (customDomain != null && customDomain.isNotEmpty)
+        'custom_domain': customDomain,
+    }))
+        .data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> deployment(
+      String projectId, String deploymentId) async {
+    return (await dio.get('/v1/projects/$projectId/deployments/$deploymentId'))
+        .data as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> domains() async {
+    if (useMockData) return const [];
+    return (await dio.get('/v1/domains')).data as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> searchDomain(String name) async =>
+      (await dio.get('/v1/domains/search', queryParameters: {'q': name})).data
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> addDomain(String name,
+          {DateTime? expiresAt}) async =>
+      (await dio.post('/v1/domains', data: {
+        'name': name,
+        if (expiresAt != null)
+          'expires_at': expiresAt.toUtc().toIso8601String(),
+      }))
+          .data as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> addSubdomain(
+          String parentId, String label) async =>
+      (await dio
+              .post('/v1/domains/$parentId/subdomains', data: {'label': label}))
+          .data as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> assignDomain(
+          String domainId, String? projectId) async =>
+      (await dio.patch('/v1/domains/$domainId/assignment',
+              data: {'project_id': projectId}))
+          .data as Map<String, dynamic>;
+
+  Future<void> renewDomain(String domainId) async {
+    await dio.post('/v1/domains/$domainId/renew');
   }
 
   Future<String> projectDownloadUrl(String projectId) async {
-    final token = await _tokenStore.accessToken();
-    if (token == null) {
-      throw StateError('Utilisateur non authentifié');
+    final response = await dio.post('/v1/projects/$projectId/download-ticket');
+    final path = response.data['path']?.toString();
+    if (path == null || path.isEmpty) {
+      throw const FormatException('Ticket de téléchargement invalide.');
     }
-    return '${dio.options.baseUrl}/v1/projects/$projectId/download?token=${Uri.encodeComponent(token)}';
+    final base = dio.options.baseUrl.replaceAll(RegExp(r'/$'), '');
+    return path.startsWith('http') ? path : '$base$path';
   }
 
   Future<List<dynamic>> articles(String projectId) async {
@@ -268,7 +378,7 @@ class ApiClient {
       String projectId, String title, String markdown, String status) async {
     return (await dio.post('/v1/projects/$projectId/articles', data: {
       'title': title,
-      'markdown': markdown,
+      'content_md': markdown,
       'status': status,
     }))
         .data as Map<String, dynamic>;
@@ -284,7 +394,7 @@ class ApiClient {
     return (await dio
             .patch('/v1/projects/$projectId/articles/$articleId', data: {
       if (title != null) 'title': title,
-      if (markdown != null) 'markdown': markdown,
+      if (markdown != null) 'content_md': markdown,
       if (status != null) 'status': status,
     }))
         .data as Map<String, dynamic>;
@@ -292,5 +402,81 @@ class ApiClient {
 
   Future<void> deleteArticle(String projectId, String articleId) async {
     await dio.delete('/v1/projects/$projectId/articles/$articleId');
+  }
+
+  Future<List<dynamic>> forms(String projectId) async {
+    return (await dio.get('/v1/projects/$projectId/forms')).data
+        as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createForm(
+      String projectId, String name, Map<String, dynamic> schema) async {
+    return (await dio.post('/v1/projects/$projectId/forms',
+            data: {'name': name, 'schema': schema}))
+        .data as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> submissions(String projectId) async {
+    return (await dio.get('/v1/projects/$projectId/submissions')).data
+        as List<dynamic>;
+  }
+
+  Future<List<dynamic>> media(String projectId) async {
+    return (await dio.get('/v1/projects/$projectId/media')).data
+        as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> projectDocument(String projectId) async {
+    return (await dio.get('/v1/projects/$projectId/document')).data
+        as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createPage(String projectId,
+      {required String name,
+      required String slug,
+      String template = 'standard'}) async {
+    return (await dio.post('/v1/projects/$projectId/pages', data: {
+      'name': name,
+      'slug': slug,
+      'template': template,
+    }))
+        .data as Map<String, dynamic>;
+  }
+
+  Future<void> deletePage(String projectId, String pageId) async {
+    await dio.delete('/v1/projects/$projectId/pages/$pageId');
+  }
+
+  Future<Map<String, dynamic>> createPageComponent(
+      String projectId, String pageId, String type,
+      {Map<String, dynamic> props = const {}}) async {
+    return (await dio.post('/v1/projects/$projectId/pages/$pageId/components',
+            data: {'type': type, 'props': props}))
+        .data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> regeneratePage(
+      String projectId, String pageId, String instruction) async {
+    return (await dio.post('/v1/projects/$projectId/pages/$pageId/regenerate',
+            data: {'instruction': instruction}))
+        .data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> replaceProjectDocument(
+      String projectId, Map<String, dynamic> document) async {
+    return (await dio.put('/v1/projects/$projectId/document',
+            data: {'document': document}))
+        .data as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> comments(String projectId) async {
+    return (await dio.get('/v1/projects/$projectId/comments')).data
+        as List<dynamic>;
+  }
+
+  Future<void> updateCommentStatus(
+      String projectId, String commentId, String status) async {
+    await dio.patch('/v1/projects/$projectId/comments/$commentId',
+        data: {'status': status});
   }
 }

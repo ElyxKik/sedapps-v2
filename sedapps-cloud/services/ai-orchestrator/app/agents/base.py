@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from app.llm.base import LLMResponse, extract_json
 from app.llm.deepseek import DeepSeekClient, LLMError, get_default_client as _get_deepseek_client
+from app.skills import compose_system_prompt
 
 
 def get_default_client() -> DeepSeekClient:
@@ -65,7 +66,7 @@ class AgentOutput(BaseModel):
 
 class BaseAgent:
     name: ClassVar[str] = "base"
-    prompt_version: ClassVar[int] = 1
+    prompt_version: ClassVar[int] = 2
     default_temperature: ClassVar[float] = 0.3
     default_max_tokens: ClassVar[int] = 4096
     use_thinking: ClassVar[bool] = False
@@ -92,6 +93,10 @@ class BaseAgent:
             raise ValueError(f"{self.name}: expected object, got {type(parsed).__name__}")
         return parsed
 
+    def composed_system_prompt(self, inp: AgentInput) -> str:
+        """Add only the team's expertise packs assigned to this agent role."""
+        return compose_system_prompt(self.name, self.system_prompt(inp))
+
     def fallback(self, inp: AgentInput, error: str) -> dict[str, Any] | None:
         """Returned when LLM fails completely; None = propagate failure."""
         return None
@@ -102,7 +107,7 @@ class BaseAgent:
         warnings: list[str] = []
         max_retries = 2
         messages = [
-            {"role": "system", "content": self.system_prompt(inp)},
+            {"role": "system", "content": self.composed_system_prompt(inp)},
             {"role": "user", "content": self.user_prompt(inp)},
         ]
 

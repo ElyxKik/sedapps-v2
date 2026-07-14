@@ -43,6 +43,20 @@ class DesignerAgent(BaseAgent):
         required = {"palette", "typography", "spacing", "radius"}
         if not isinstance(parsed, dict) or not required.issubset(parsed.keys()):
             raise ValueError("designer: missing keys")
+        brief = inp.context.get("brief", {})
+        brand = brief.get("brand") if isinstance(brief.get("brand"), dict) else {}
+        primary = brand.get("primary_color") or brief.get("primary_color")
+        secondary = brand.get("secondary_color") or brief.get("secondary_color")
+        heading = brand.get("font_heading") or brief.get("font_style")
+        body = brand.get("font_body") or brief.get("font_style")
+        if isinstance(primary, str) and primary:
+            parsed["palette"]["primary"] = primary
+        if isinstance(secondary, str) and secondary:
+            parsed["palette"]["secondary"] = secondary
+        if isinstance(heading, str) and heading:
+            parsed["typography"]["heading"] = heading
+        if isinstance(body, str) and body:
+            parsed["typography"]["body"] = body
         return parsed
 
     def fallback(self, inp: AgentInput, error: str) -> dict[str, Any]:
