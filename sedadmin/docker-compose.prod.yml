@@ -3,6 +3,16 @@ services:
     build: .
     restart: always
     env_file: .env.production
-    ports: ["3001:3001"]
+    ports: ["127.0.0.1:3001:3001"]
     environment:
       - NODE_ENV=production
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001/login >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+networks:
+  default:
+    name: sedapps_default
+    external: true

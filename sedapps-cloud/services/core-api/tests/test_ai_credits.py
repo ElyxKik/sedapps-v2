@@ -8,6 +8,7 @@ from app.services.credits import (
     TOKENS_PER_CREDIT,
     _reset_if_due,
     credits_for_tokens,
+    organization_wallet_snapshot,
     settle_job_credits,
 )
 
@@ -53,3 +54,37 @@ def test_settled_job_is_not_charged_twice():
     job = AiJob(credits_settled=True, charged_credits=7)
 
     assert settle_job_credits(None, job) == 7  # type: ignore[arg-type]
+
+
+def test_bonus_credits_extend_the_monthly_plan_balance():
+    organization = Organization(
+        name="Test",
+        plan="free",
+        ai_credits_used=480,
+        ai_credits_reserved=10,
+        ai_bonus_credits=100,
+        ai_credits_reset_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+    )
+
+    wallet = organization_wallet_snapshot(organization)
+
+    assert wallet["monthly_quota_credits"] == 500
+    assert wallet["bonus_credits"] == 100
+    assert wallet["balance_credits"] == 120
+    assert wallet["available_credits"] == 110
+
+
+def test_monthly_reset_preserves_unspent_promotional_credits():
+    organization = Organization(
+        name="Test",
+        plan="free",
+        ai_credits_used=500,
+        ai_credits_reserved=0,
+        ai_bonus_credits=75,
+        ai_credits_reset_at=datetime(2026, 7, 1, tzinfo=timezone.utc),
+    )
+
+    _reset_if_due(organization, datetime(2026, 7, 15, tzinfo=timezone.utc))
+
+    assert organization.ai_credits_used == 0
+    assert organization.ai_bonus_credits == 75

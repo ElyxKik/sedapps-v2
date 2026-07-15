@@ -3,7 +3,7 @@ import { backendRequest } from '@/lib/sedapps-backend'
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, credits, description } = await request.json()
+    const { userId, credits, description, type } = await request.json()
 
     if (!userId || !credits || credits <= 0) {
       return NextResponse.json(
@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
         userId,
         credits,
         description: description || `Ajout manuel par admin`,
+        type: type === 'promotion' ? 'promotion' : 'manual',
       }),
     })
 

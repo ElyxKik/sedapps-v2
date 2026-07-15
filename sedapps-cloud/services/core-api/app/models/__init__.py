@@ -11,6 +11,7 @@ from app.models.ai_job import AiJob, AgentRun, JobStatus
 from app.models.deployment import Deployment, DeploymentStatus
 from app.models.comment import Comment, CommentStatus
 from app.models.domain import Domain, DomainStatus
+from app.models.credit_transaction import CreditTransaction
 
 __all__ = [
     "Organization",
@@ -39,4 +40,5 @@ __all__ = [
     "CommentStatus",
     "Domain",
     "DomainStatus",
+    "CreditTransaction",
 ]

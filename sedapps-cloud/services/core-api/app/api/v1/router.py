@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import account, articles, auth, content, credits, domains, internal, jobs, preview, projects
+from app.api.v1 import account, admin, articles, auth, content, credits, domains, internal, jobs, preview, projects
 
 api_router = APIRouter(prefix="/v1")
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -13,3 +13,4 @@ api_router.include_router(content.router, prefix="/projects", tags=["content"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
 api_router.include_router(internal.router, prefix="/internal", tags=["internal"])
 api_router.include_router(preview.router, tags=["preview"])
+api_router.include_router(admin.router, prefix="/admin", tags=["admin"])

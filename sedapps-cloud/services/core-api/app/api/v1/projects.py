@@ -75,13 +75,18 @@ def _reserve_ai_operation(db: Session, operation: str, tier: str = "standard") -
         ) from exc
 
 
-def _settle_agent_result(db: Session, reserved: int, result: dict) -> int:
+def _settle_agent_result(
+    db: Session, reserved: int, result: dict, operation: str
+) -> int:
     usage = result.pop("_usage", {})
     charged = settle_reserved_credits(
         db,
         reserved,
         int(usage.get("tokens_in", 0) or 0),
         int(usage.get("tokens_out", 0) or 0),
+        user_id=db.info.get("user_id"),
+        operation=operation,
+        description=f"Traitement IA : {operation}",
     )
     db.commit()
     return charged
@@ -292,6 +297,7 @@ async def generate_site(
         status=JobStatus.queued,
         input={"brief": project.brief, "locale": body.locale},
         reserved_credits=reserved_credits,
+        initiated_by_user_id=db.info.get("user_id"),
     )
     project.status = ProjectStatus.generating
     db.add(job)
@@ -534,7 +540,9 @@ async def edit_component_chat(
             context=context,
             params={"instruction": body.instruction},
         )
-        charged_credits = _settle_agent_result(db, reserved_credits, result)
+        charged_credits = _settle_agent_result(
+            db, reserved_credits, result, "component_edit"
+        )
         credits_settled = True
         ops = result.get("ops") or []
         patched = patch_component(
@@ -589,7 +597,9 @@ async def project_chat(
             context=context,
             params={"messages": body.messages},
         )
-        charged_credits = _settle_agent_result(db, reserved_credits, result)
+        charged_credits = _settle_agent_result(
+            db, reserved_credits, result, "project_chat"
+        )
         result["charged_credits"] = charged_credits
         return result
     except Exception as exc:

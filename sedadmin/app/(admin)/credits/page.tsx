@@ -1,179 +1,258 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Search, Plus, Loader2, AlertCircle, CheckCircle2, Zap } from 'lucide-react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  AlertCircle,
+  CheckCircle2,
+  Coins,
+  Eye,
+  Gift,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Search,
+  Sparkles,
+  TrendingDown,
+  WalletCards,
+  X,
+  Zap,
+} from 'lucide-react'
 
-interface User {
+interface CreditUser {
   id: string
   email: string
   name: string
   createdAt: string
+  organization_id?: string
+  organization_name?: string
+  plan: string
   balance: number
+  includedQuota: number
+  bonusBalance: number
+  reserved: number
+  usedThisMonth: number
   totalPurchased: number
   totalConsumed: number
+  totalTokens: number
 }
 
+const number = new Intl.NumberFormat('fr-FR')
+
 export default function CreditsAdminPage() {
-  const [users, setUsers] = useState<User[]>([])
+  const router = useRouter()
+  const [users, setUsers] = useState<CreditUser[]>([])
   const [loading, setLoading] = useState(true)
-  const [searching, setSearching] = useState(false)
   const [search, setSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-
-  // Modal state
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [selectedUser, setSelectedUser] = useState<CreditUser | null>(null)
   const [creditsToAdd, setCreditsToAdd] = useState('')
   const [description, setDescription] = useState('')
+  const [grantType, setGrantType] = useState<'manual' | 'promotion'>('manual')
   const [submitting, setSubmitting] = useState(false)
 
-  // Fetch users
-  useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await fetch(`/api/credits/users?search=${encodeURIComponent(search)}&limit=50`)
-        if (!res.ok) throw new Error('Erreur lors de la récupération des utilisateurs')
-        const data = await res.json()
-        setUsers(data.users)
-      } catch (err: any) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
+  const fetchUsers = async (term = search) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(
+        `/api/credits/users?search=${encodeURIComponent(term)}&limit=100`,
+      )
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Impossible de charger les crédits.')
+      setUsers(data.users ?? [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur inattendue.')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    const timer = setTimeout(fetchUsers, 300) // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => fetchUsers(search), 300)
     return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
 
-  const handleAddCredits = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedUser || !creditsToAdd) return
+  const totals = useMemo(
+    () => {
+      const organizations = new Map<string, CreditUser>()
+      for (const user of users) {
+        organizations.set(user.organization_id || user.id, user)
+      }
+      const wallets = [...organizations.values()]
+      return {
+        available: wallets.reduce((sum, user) => sum + user.balance, 0),
+        bonus: wallets.reduce((sum, user) => sum + user.bonusBalance, 0),
+        used: wallets.reduce((sum, user) => sum + user.usedThisMonth, 0),
+      }
+    },
+    [users],
+  )
 
+  const closeModal = () => {
+    setSelectedUser(null)
+    setCreditsToAdd('')
+    setDescription('')
+    setGrantType('manual')
+  }
+
+  const openGrant = (user: CreditUser, type: 'manual' | 'promotion') => {
+    setSelectedUser(user)
+    setGrantType(type)
+    setDescription(type === 'promotion' ? 'Bonus promotionnel de bienvenue' : '')
+  }
+
+  const handleAddCredits = async (event: FormEvent) => {
+    event.preventDefault()
+    const credits = Number.parseInt(creditsToAdd, 10)
+    if (!selectedUser || !Number.isFinite(credits) || credits <= 0) return
     setSubmitting(true)
     setError(null)
     setSuccess(null)
-
     try {
-      const res = await fetch('/api/credits/add', {
+      const response = await fetch('/api/credits/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: selectedUser.id,
-          credits: parseInt(creditsToAdd, 10),
-          description: description || undefined,
+          credits,
+          type: grantType,
+          description: description.trim() || undefined,
         }),
       })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Erreur lors de l\'ajout de crédits')
-      }
-
-      const data = await res.json()
-      setSuccess(`✅ ${data.message}`)
-      setCreditsToAdd('')
-      setDescription('')
-      setSelectedUser(null)
-
-      // Refresh users
-      const refreshRes = await fetch(`/api/credits/users?search=${encodeURIComponent(search)}&limit=50`)
-      if (refreshRes.ok) {
-        const refreshData = await refreshRes.json()
-        setUsers(refreshData.users)
-      }
-    } catch (err: any) {
-      setError(err.message)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Échec de l’ajout de crédits.')
+      setSuccess(data.message)
+      closeModal()
+      await fetchUsers()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur inattendue.')
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-          <Zap className="w-8 h-8 text-amber-400" />
-          Gestion des Crédits
-        </h1>
-        <p className="text-white/50 mt-2">Ajouter manuellement des crédits aux utilisateurs</p>
+    <div className="space-y-6 p-6 lg:p-8">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="flex items-center gap-3 text-3xl font-bold text-white">
+            <Zap className="h-8 w-8 text-amber-400" />
+            Crédits IA
+          </h1>
+          <p className="mt-2 text-sm text-white/50">
+            1 crédit = 1 000 tokens · bonus, promotions et consommation réelle par utilisateur
+          </p>
+        </div>
+        <button
+          onClick={() => fetchUsers()}
+          disabled={loading}
+          className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/70 transition hover:bg-white/10 hover:text-white"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          Actualiser
+        </button>
       </div>
 
-      {/* Search */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {[
+          { label: 'Crédits disponibles', value: totals.available, icon: WalletCards, color: 'text-amber-400' },
+          { label: 'Bonus disponibles', value: totals.bonus, icon: Gift, color: 'text-violet-400' },
+          { label: 'Consommés ce mois', value: totals.used, icon: TrendingDown, color: 'text-rose-400' },
+        ].map(card => (
+          <div key={card.label} className="glass rounded-2xl border border-white/5 p-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-white/45">{card.label}</p>
+              <card.icon className={`h-5 w-5 ${card.color}`} />
+            </div>
+            <p className={`mt-3 text-3xl font-bold ${card.color}`}>{number.format(card.value)}</p>
+          </div>
+        ))}
+      </div>
+
       <div className="relative">
-        <Search className="absolute left-3 top-3 w-5 h-5 text-white/30" />
+        <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/30" />
         <input
-          type="text"
-          placeholder="Rechercher par email ou nom..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-blue-500/50"
+          onChange={event => setSearch(event.target.value)}
+          placeholder="Rechercher par email ou nom…"
+          className="w-full rounded-xl border border-white/10 bg-white/5 py-3 pl-12 pr-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-sala-primary/60"
         />
       </div>
 
-      {/* Error/Success messages */}
       {error && (
-        <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-          <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-          <p className="text-red-300 text-sm">{error}</p>
+        <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+          <AlertCircle className="h-5 w-5 shrink-0" /> {error}
         </div>
       )}
-
       {success && (
-        <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
-          <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
-          <p className="text-green-300 text-sm">{success}</p>
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300">
+          <CheckCircle2 className="h-5 w-5 shrink-0" /> {success}
         </div>
       )}
 
-      {/* Users table */}
-      <div className="glass rounded-2xl overflow-hidden">
+      <div className="glass overflow-hidden rounded-2xl border border-white/5">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 text-white/40 animate-spin" />
+          <div className="flex items-center justify-center gap-2 py-16 text-white/40">
+            <Loader2 className="h-5 w-5 animate-spin" /> Chargement…
           </div>
         ) : users.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-white/40">Aucun utilisateur trouvé</p>
-          </div>
+          <div className="py-16 text-center text-white/40">Aucun utilisateur trouvé.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/10">
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-white/60 uppercase">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-white/60 uppercase">Nom</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-white/60 uppercase">Solde</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-white/60 uppercase">Acheté</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-white/60 uppercase">Consommé</th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-white/60 uppercase">Action</th>
+            <table className="w-full min-w-[1050px] text-sm">
+              <thead className="border-b border-white/10 bg-white/[0.02] text-xs uppercase tracking-wide text-white/35">
+                <tr>
+                  <th className="px-5 py-4 text-left font-medium">Utilisateur</th>
+                  <th className="px-4 py-4 text-left font-medium">Plan</th>
+                  <th className="px-4 py-4 text-right font-medium">Disponible</th>
+                  <th className="px-4 py-4 text-right font-medium">Bonus</th>
+                  <th className="px-4 py-4 text-right font-medium">Utilisé ce mois</th>
+                  <th className="px-4 py-4 text-right font-medium">Tokens suivis</th>
+                  <th className="px-5 py-4 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                    <td className="px-6 py-4 text-sm text-white">{user.email}</td>
-                    <td className="px-6 py-4 text-sm text-white/70">{user.name}</td>
-                    <td className="px-6 py-4 text-sm text-right font-semibold text-amber-400">
-                      {user.balance.toLocaleString()}
+                {users.map(user => (
+                  <tr key={user.id} className="border-b border-white/5 transition hover:bg-white/[0.03]">
+                    <td className="px-5 py-4">
+                      <p className="font-medium text-white">{user.name}</p>
+                      <p className="text-xs text-white/40">{user.email}</p>
+                      <p className="mt-1 text-[11px] text-white/25">{user.organization_name}</p>
                     </td>
-                    <td className="px-6 py-4 text-sm text-right text-green-400">
-                      {user.totalPurchased.toLocaleString()}
+                    <td className="px-4 py-4">
+                      <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-xs capitalize text-blue-300">
+                        {user.plan}
+                      </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-right text-red-400">
-                      {user.totalConsumed.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => setSelectedUser(user)}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-sala-primary hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Ajouter
-                      </button>
+                    <td className="px-4 py-4 text-right font-semibold text-amber-400">{number.format(user.balance)}</td>
+                    <td className="px-4 py-4 text-right text-violet-400">{number.format(user.bonusBalance)}</td>
+                    <td className="px-4 py-4 text-right text-rose-400">{number.format(user.usedThisMonth)}</td>
+                    <td className="px-4 py-4 text-right text-white/55">{number.format(user.totalTokens)}</td>
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => router.push(`/users/${user.id}`)}
+                          title="Voir l’historique"
+                          className="rounded-lg bg-white/5 p-2 text-white/50 transition hover:bg-white/10 hover:text-white"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => openGrant(user, 'promotion')}
+                          className="flex items-center gap-1.5 rounded-lg bg-violet-500/15 px-3 py-2 text-xs font-semibold text-violet-300 transition hover:bg-violet-500/25"
+                        >
+                          <Gift className="h-4 w-4" /> Promo
+                        </button>
+                        <button
+                          onClick={() => openGrant(user, 'manual')}
+                          className="flex items-center gap-1.5 rounded-lg bg-sala-primary px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500"
+                        >
+                          <Plus className="h-4 w-4" /> Ajouter
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -183,82 +262,93 @@ export default function CreditsAdminPage() {
         )}
       </div>
 
-      {/* Modal */}
       {selectedUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="glass rounded-2xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold text-white mb-4">
-              Ajouter des crédits
-            </h2>
-            <p className="text-white/60 text-sm mb-4">
-              Utilisateur: <span className="text-white font-semibold">{selectedUser.email}</span>
-            </p>
-
-            <form onSubmit={handleAddCredits} className="space-y-4">
-              {/* Credits input */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#0b1020] p-6 shadow-2xl">
+            <div className="flex items-start justify-between">
               <div>
-                <label className="block text-sm font-semibold text-white mb-2">
-                  Nombre de crédits
-                </label>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
+                  {grantType === 'promotion' ? 'Campagne promotionnelle' : 'Ajustement manuel'}
+                </p>
+                <h2 className="mt-1 text-xl font-bold text-white">Ajouter des crédits</h2>
+                <p className="mt-1 text-sm text-white/45">{selectedUser.email}</p>
+              </div>
+              <button onClick={closeModal} className="rounded-lg p-2 text-white/35 hover:bg-white/5 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setGrantType('manual')}
+                className={`rounded-xl border p-3 text-left transition ${grantType === 'manual' ? 'border-blue-500/60 bg-blue-500/10' : 'border-white/10 bg-white/[0.02]'}`}
+              >
+                <Coins className="mb-2 h-5 w-5 text-blue-400" />
+                <p className="text-sm font-semibold text-white">Ajout manuel</p>
+                <p className="mt-1 text-xs text-white/35">Support ou geste commercial</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGrantType('promotion')
+                  if (!description) setDescription('Bonus promotionnel de bienvenue')
+                }}
+                className={`rounded-xl border p-3 text-left transition ${grantType === 'promotion' ? 'border-violet-500/60 bg-violet-500/10' : 'border-white/10 bg-white/[0.02]'}`}
+              >
+                <Sparkles className="mb-2 h-5 w-5 text-violet-400" />
+                <p className="text-sm font-semibold text-white">Promotion</p>
+                <p className="mt-1 text-xs text-white/35">Bonus nouveau client</p>
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCredits} className="mt-5 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-white/75">Nombre de crédits</label>
                 <input
                   type="number"
                   min="1"
-                  max="10000"
+                  max="1000000"
                   value={creditsToAdd}
-                  onChange={(e) => setCreditsToAdd(e.target.value)}
-                  placeholder="Ex: 50"
-                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-blue-500/50"
+                  onChange={event => setCreditsToAdd(event.target.value)}
+                  placeholder="Ex. 100"
+                  autoFocus
                   required
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-white/20 focus:border-blue-500/60"
                 />
-                <p className="text-xs text-white/40 mt-1">
-                  Solde actuel: {selectedUser.balance} crédits
+                <div className="mt-2 flex gap-2">
+                  {[50, 100, 250, 500].map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setCreditsToAdd(String(preset))}
+                      className="rounded-lg bg-white/5 px-3 py-1.5 text-xs text-white/50 hover:bg-white/10 hover:text-white"
+                    >
+                      +{preset}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-white/35">
+                  Solde actuel : {number.format(selectedUser.balance)} · 1 crédit = 1 000 tokens
                 </p>
               </div>
-
-              {/* Description input */}
               <div>
-                <label className="block text-sm font-semibold text-white mb-2">
-                  Description (optionnel)
-                </label>
+                <label className="mb-2 block text-sm font-medium text-white/75">Motif</label>
                 <input
-                  type="text"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Ex: Bonus de bienvenue"
-                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:border-blue-500/50"
+                  onChange={event => setDescription(event.target.value)}
+                  maxLength={500}
+                  placeholder="Ex. Bonus de lancement juillet"
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-white/20 focus:border-blue-500/60"
                 />
               </div>
-
-              {/* Buttons */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedUser(null)
-                    setCreditsToAdd('')
-                    setDescription('')
-                  }}
-                  className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-xl transition-colors"
-                  disabled={submitting}
-                >
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={closeModal} disabled={submitting} className="flex-1 rounded-xl bg-white/5 px-4 py-3 text-sm font-semibold text-white/65 hover:bg-white/10">
                   Annuler
                 </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2.5 bg-sala-primary hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                  disabled={submitting || !creditsToAdd}
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Ajout...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4" />
-                      Ajouter
-                    </>
-                  )}
+                <button type="submit" disabled={submitting || !creditsToAdd} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-sala-primary px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : grantType === 'promotion' ? <Gift className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  Confirmer
                 </button>
               </div>
             </form>

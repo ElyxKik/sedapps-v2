@@ -16,6 +16,7 @@ class Organization(UUIDPKMixin, TimestampMixin, Base):
     stripe_customer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     ai_credits_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ai_credits_reserved: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ai_bonus_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ai_credits_reset_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

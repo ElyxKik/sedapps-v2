@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     DEPLOY_SERVICE_URL: str = "http://deploy-service:8002"
     DEPLOY_BASE_DOMAIN: str = "salaai.site"
     INTERNAL_API_TOKEN: str = "change-me-internal-token"
+    SEDAPPS_ADMIN_SECRET: str = ""
 
     # OVH Domain purchasing API credentials
     OVH_APP_KEY: str = ""

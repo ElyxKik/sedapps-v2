@@ -13,7 +13,7 @@ const MAIN_APP = process.env.NEXT_PUBLIC_MAIN_APP_URL || 'http://localhost:3000'
 
 interface CreditTransaction {
   id: string
-  type: 'purchase' | 'consumption' | 'refund' | 'bonus'
+  type: 'purchase' | 'consumption' | 'refund' | 'bonus' | 'manual' | 'promotion'
   credits_delta: number
   balance_after: number
   generation_type?: string
@@ -25,8 +25,13 @@ interface CreditTransaction {
 
 interface CreditData {
   balance: number
+  included_quota: number
+  bonus_balance: number
+  reserved: number
+  used_this_month: number
   total_purchased: number
   total_consumed: number
+  total_tokens: number
 }
 
 interface UserDetail {
@@ -262,22 +267,26 @@ export default function UserDetailPage() {
           ) : (
             <div className="space-y-4">
               {/* Stats cards */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white/5 rounded-xl p-3 text-center">
-                  <p className="text-white/40 text-xs mb-1">Solde</p>
+                  <p className="text-white/40 text-xs mb-1">Disponible</p>
                   <p className="text-amber-400 font-bold text-lg">{credits.balance.balance.toLocaleString()}</p>
                 </div>
-                <div className="bg-emerald-500/10 rounded-xl p-3 text-center border border-emerald-500/20">
-                  <p className="text-emerald-400/60 text-xs mb-1 flex items-center justify-center gap-1">
-                    <TrendingUp className="w-3 h-3" /> Acheté
+                <div className="bg-violet-500/10 rounded-xl p-3 text-center border border-violet-500/20">
+                  <p className="text-violet-400/60 text-xs mb-1 flex items-center justify-center gap-1">
+                    <TrendingUp className="w-3 h-3" /> Bonus
                   </p>
-                  <p className="text-emerald-400 font-bold text-lg">{credits.balance.total_purchased.toLocaleString()}</p>
+                  <p className="text-violet-400 font-bold text-lg">{credits.balance.bonus_balance.toLocaleString()}</p>
                 </div>
                 <div className="bg-red-500/10 rounded-xl p-3 text-center border border-red-500/20">
                   <p className="text-red-400/60 text-xs mb-1 flex items-center justify-center gap-1">
-                    <TrendingDown className="w-3 h-3" /> Consommé
+                    <TrendingDown className="w-3 h-3" /> Ce mois
                   </p>
-                  <p className="text-red-400 font-bold text-lg">{credits.balance.total_consumed.toLocaleString()}</p>
+                  <p className="text-red-400 font-bold text-lg">{credits.balance.used_this_month.toLocaleString()}</p>
+                </div>
+                <div className="bg-blue-500/10 rounded-xl p-3 text-center border border-blue-500/20">
+                  <p className="text-blue-400/60 text-xs mb-1">Tokens réels</p>
+                  <p className="text-blue-400 font-bold text-lg">{credits.balance.total_tokens.toLocaleString()}</p>
                 </div>
               </div>
 
@@ -329,6 +338,10 @@ export default function UserDetailPage() {
                                 ? 'Achat'
                                 : tx.type === 'refund'
                                 ? 'Remboursement'
+                                : tx.type === 'promotion'
+                                ? 'Promotion'
+                                : tx.type === 'manual'
+                                ? 'Ajout manuel'
                                 : 'Bonus'}
                             </p>
                             <span className={`font-semibold flex-shrink-0 ${
@@ -339,6 +352,9 @@ export default function UserDetailPage() {
                           </div>
                           {tx.tokens_used && (
                             <p className="text-white/30 text-[10px]">{tx.tokens_used.toLocaleString()} tokens</p>
+                          )}
+                          {tx.description && (
+                            <p className="truncate text-white/35 text-[10px]">{tx.description}</p>
                           )}
                           <p className="text-white/20 text-[10px]">
                             {new Date(tx.created_at).toLocaleDateString('fr', {
