@@ -12,10 +12,12 @@ void main() {
         'used_this_month_credits': 125,
         'monthly_quota_credits': 500,
         'plan': 'starter',
+        'tokens_per_credit': 1000,
       });
 
       expect(wallet.available, 475);
       expect(wallet.plan, 'starter');
+      expect(wallet.tokensPerCredit, 1000);
       expect(wallet.usageRatio, 0.25);
     });
 

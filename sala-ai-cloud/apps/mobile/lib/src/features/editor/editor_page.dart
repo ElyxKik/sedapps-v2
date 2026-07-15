@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../widgets/editor_iframe.dart';
 import '../../widgets/notifications.dart';
 import '../../widgets/page_scaffold.dart';
+import '../account/data/billing_repository.dart';
 import '../projects/project_workspace_state.dart';
 
 class EditorPage extends ConsumerStatefulWidget {
@@ -114,6 +115,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
       final res = await ref
           .read(apiClientProvider)
           .editChat(projectId, id, instruction, _selected ?? {});
+      ref.invalidate(creditWalletProvider);
       final ops = ((res['ops'] as List?) ?? []).cast<Map<String, dynamic>>();
       if (ops.isNotEmpty) _ctrl.applyOps(id, ops);
       _undoDepth = (res['undo_depth'] as int?) ?? _undoDepth;
@@ -377,6 +379,7 @@ class _EditorPageState extends ConsumerState<EditorPage> {
               'Tu aides à modifier un document JSON de composants. $prompt'
         }
       ]);
+      ref.invalidate(creditWalletProvider);
       if (mounted)
         showDialog<void>(
             context: context,

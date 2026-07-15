@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -15,6 +16,7 @@ from app.models.deployment import Deployment, DeploymentStatus
 from app.models.project import Project, ProjectStatus
 from app.models.site_version import SiteVersion
 from app.component_sdk import migrate_page_schema, validate_document
+from app.services.credits import settle_job_credits
 
 router = APIRouter()
 
@@ -146,7 +148,11 @@ def record_agent_run(job_id: uuid.UUID, body: AgentRunIn, db: Session = Depends(
 
 @router.post("/jobs/{job_id}/complete", dependencies=[Depends(require_internal)])
 def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(get_db)) -> dict:
-    job = db.get(AiJob, job_id)
+    # Lock the job so a retried completion callback cannot charge the same
+    # generation twice.
+    job = db.execute(
+        select(AiJob).where(AiJob.id == job_id).with_for_update()
+    ).scalar_one_or_none()
     if not job:
         raise HTTPException(404, "job not found")
     job.status = body.status
@@ -156,6 +162,7 @@ def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(g
     job.tokens_out = body.tokens_out
     job.cost_cents = body.cost_cents
     job.finished_at = datetime.now(timezone.utc)
+    charged_credits = settle_job_credits(db, job)
     _append_job_event(
         job,
         {
@@ -226,7 +233,7 @@ def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(g
         project.status = ProjectStatus.ready if has_previous_version else ProjectStatus.draft
 
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "charged_credits": charged_credits}
 
 
 @router.post("/deployments/{deployment_id}", dependencies=[Depends(require_internal)])

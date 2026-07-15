@@ -228,7 +228,7 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
                               color: AppColors.textSecondary, fontSize: 12)),
                       const SizedBox(height: 6),
                       const Text(
-                          'Une création de site standard utilise environ 250 crédits.',
+                          '1 crédit = 1 000 tokens IA. Une création standard réserve 250 crédits, puis seul l’usage réel est débité.',
                           style: TextStyle(
                               color: AppColors.textSecondary, fontSize: 12)),
                     ],

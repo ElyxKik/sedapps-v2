@@ -4,6 +4,7 @@ import uuid
 import io
 import json
 import zipfile
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import StreamingResponse
@@ -37,6 +38,13 @@ from app.schemas.project import (
     ComponentCreateIn,
 )
 from app.services.deploy_client import DeployClient
+from app.services.credits import (
+    InsufficientCreditsError,
+    TOKENS_PER_CREDIT,
+    release_reserved_credits,
+    reserve_credits,
+    settle_reserved_credits,
+)
 from app.services.orchestrator_client import OrchestratorClient
 from app.services.ovh_client import OvhClient
 from app.services.slug import unique_global_slug
@@ -50,6 +58,33 @@ from app.component_sdk import (
 )
 
 router = APIRouter()
+
+
+def _reserve_ai_operation(db: Session, operation: str, tier: str = "standard") -> int:
+    try:
+        return reserve_credits(db, operation, tier)
+    except InsufficientCreditsError as exc:
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            {
+                "code": "insufficient_ai_credits",
+                "required_credits": exc.required,
+                "available_credits": exc.available,
+                "tokens_per_credit": TOKENS_PER_CREDIT,
+            },
+        ) from exc
+
+
+def _settle_agent_result(db: Session, reserved: int, result: dict) -> int:
+    usage = result.pop("_usage", {})
+    charged = settle_reserved_credits(
+        db,
+        reserved,
+        int(usage.get("tokens_in", 0) or 0),
+        int(usage.get("tokens_out", 0) or 0),
+    )
+    db.commit()
+    return charged
 
 
 @router.get("/components/sdk", tags=["components"])
@@ -235,26 +270,54 @@ async def generate_site(
     if not project.brief:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "complete onboarding first")
 
+    tier = "premium" if project.brief.get("premium") else "standard"
+    try:
+        reserved_credits = reserve_credits(db, "site_generation", tier)
+    except InsufficientCreditsError as exc:
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            {
+                "code": "insufficient_ai_credits",
+                "required_credits": exc.required,
+                "available_credits": exc.available,
+                "tokens_per_credit": TOKENS_PER_CREDIT,
+            },
+        ) from exc
+
+    previous_status = project.status
     job = AiJob(
         tenant_id=db.info["tenant_id"],
         project_id=project.id,
         workflow="site_generation",
         status=JobStatus.queued,
         input={"brief": project.brief, "locale": body.locale},
+        reserved_credits=reserved_credits,
     )
     project.status = ProjectStatus.generating
     db.add(job)
     db.commit()
     db.refresh(job)
 
-    client = OrchestratorClient()
-    await client.enqueue_site_generation(
-        job_id=str(job.id),
-        project_id=str(project.id),
-        tenant_id=str(project.tenant_id),
-        brief=project.brief,
-        locale=body.locale,
-    )
+    try:
+        client = OrchestratorClient()
+        await client.enqueue_site_generation(
+            job_id=str(job.id),
+            project_id=str(project.id),
+            tenant_id=str(project.tenant_id),
+            brief=project.brief,
+            locale=body.locale,
+        )
+    except Exception as exc:
+        job.status = JobStatus.failed
+        job.error = "AI orchestrator unavailable"
+        job.finished_at = datetime.now(timezone.utc)
+        release_reserved_credits(db, reserved_credits)
+        job.credits_settled = True
+        project.status = previous_status
+        db.commit()
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, "AI orchestrator unavailable"
+        ) from exc
     return JobOut(id=str(job.id), status=job.status.value, workflow=job.workflow)
 
 
@@ -459,6 +522,9 @@ async def edit_component_chat(
     if not versions:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "site version not found")
     tree = _component_tree(versions[0])
+    reserved_credits = _reserve_ai_operation(db, "site_edit")
+    db.commit()
+    credits_settled = False
     try:
         context = build_component_ai_context(tree, body.element_id)
         result = await OrchestratorClient().run_agent(
@@ -468,6 +534,8 @@ async def edit_component_chat(
             context=context,
             params={"instruction": body.instruction},
         )
+        charged_credits = _settle_agent_result(db, reserved_credits, result)
+        credits_settled = True
         ops = result.get("ops") or []
         patched = patch_component(
             project_id,
@@ -475,15 +543,25 @@ async def edit_component_chat(
             db,
         )
     except HTTPException:
+        if not credits_settled:
+            release_reserved_credits(db, reserved_credits)
+            db.commit()
         raise
     except ValueError as exc:
+        if not credits_settled:
+            release_reserved_credits(db, reserved_credits)
+            db.commit()
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     except Exception as exc:
+        if not credits_settled:
+            release_reserved_credits(db, reserved_credits)
+            db.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "AI editor unavailable") from exc
     return {
         **patched.model_dump(),
         "ops": ops,
         "message": result.get("message") or "Modification appliquée.",
+        "charged_credits": charged_credits,
     }
 
 
@@ -501,15 +579,22 @@ async def project_chat(
         "brief": project.brief,
         "design_system": _component_tree(versions[0]).get("design_system", {}) if versions else {},
     }
+    reserved_credits = _reserve_ai_operation(db, "site_edit")
+    db.commit()
     try:
-        return await OrchestratorClient().run_agent(
+        result = await OrchestratorClient().run_agent(
             "project_chat",
             project_id=str(project.id),
             tenant_id=str(project.tenant_id),
             context=context,
             params={"messages": body.messages},
         )
+        charged_credits = _settle_agent_result(db, reserved_credits, result)
+        result["charged_credits"] = charged_credits
+        return result
     except Exception as exc:
+        release_reserved_credits(db, reserved_credits)
+        db.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "AI chat unavailable") from exc
 
 

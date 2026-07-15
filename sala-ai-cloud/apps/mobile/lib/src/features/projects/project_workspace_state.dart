@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/api_client.dart';
+import '../account/data/billing_repository.dart';
 import '../publish/data/publishing_repository.dart';
 import '../publish/domain/deployment.dart';
 
@@ -519,6 +520,7 @@ class ProjectWorkspaceNotifier extends StateNotifier<ProjectWorkspaceState> {
       responseText = await _ref
           .read(apiClientProvider)
           .chatWithProject(projectId, history);
+      _ref.invalidate(creditWalletProvider);
       if (responseText.trim().isEmpty) {
         responseText =
             'Je n\'ai pas de réponse pour le moment. Reformule ta demande et réessaie.';

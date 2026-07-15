@@ -231,12 +231,15 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
       _autoSwitched = false;
       if (!mounted) return;
       _openWorkspace(_WorkspacePanel.editor);
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
+      final message = error.toString();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text(
-                'Impossible de lancer la r\u00e9g\u00e9n\u00e9ration. R\u00e9essaie.')),
+        SnackBar(
+          content: Text(message.contains('Crédits IA insuffisants')
+              ? message
+              : 'Impossible de lancer la régénération. Réessaie.'),
+        ),
       );
     } finally {
       if (mounted) setState(() => _regenerating = false);

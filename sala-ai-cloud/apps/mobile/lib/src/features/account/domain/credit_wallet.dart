@@ -6,6 +6,7 @@ class CreditWallet {
     required this.usedThisMonth,
     required this.monthlyQuota,
     required this.plan,
+    required this.tokensPerCredit,
     this.resetAt,
   });
 
@@ -16,6 +17,7 @@ class CreditWallet {
         usedThisMonth: _integer(json['used_this_month_credits']),
         monthlyQuota: _integer(json['monthly_quota_credits']),
         plan: json['plan']?.toString() ?? 'free',
+        tokensPerCredit: _integer(json['tokens_per_credit']),
         resetAt: DateTime.tryParse(json['reset_at']?.toString() ?? ''),
       );
 
@@ -27,6 +29,7 @@ class CreditWallet {
   final int usedThisMonth;
   final int monthlyQuota;
   final String plan;
+  final int tokensPerCredit;
   final DateTime? resetAt;
 
   double get usageRatio => monthlyQuota == 0

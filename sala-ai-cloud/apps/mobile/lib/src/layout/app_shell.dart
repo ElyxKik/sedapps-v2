@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/breakpoints.dart';
 import '../core/theme.dart';
 import '../features/agents/agent_state.dart';
+import '../features/account/data/billing_repository.dart';
 
 /// Controls the desktop navigation width from full-screen project workspaces.
 final sidebarExpandedProvider = StateProvider<bool>((ref) => true);
@@ -84,6 +85,15 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     });
 
+    ref.listen(currentJobProvider, (previous, next) {
+      final job = next.asData?.value;
+      if (job != null &&
+          const {'success', 'degraded', 'failed', 'error'}
+              .contains(job.status)) {
+        ref.invalidate(creditWalletProvider);
+      }
+    });
+
     final loc = GoRouterState.of(context).matchedLocation;
     final idx = _selectedIndex(loc);
     final isDesktop = Breakpoints.isDesktop(context);
@@ -125,12 +135,17 @@ class _AppShellState extends ConsumerState<AppShell> {
 
 // ---------------- Mobile ----------------
 
-class _MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
+class _MobileAppBar extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(72);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final credits = ref.watch(creditWalletProvider).when(
+          data: (wallet) => wallet.available,
+          loading: () => 0,
+          error: (_, __) => 0,
+        );
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.background,
@@ -148,7 +163,8 @@ class _MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
                 const Flexible(child: _Logo(compact: true)),
                 Row(
                   children: [
-                    _CreditButton(credits: 12, onTap: () {}),
+                    _CreditButton(
+                        credits: credits, onTap: () => context.go('/account')),
                     const SizedBox(width: 8),
                     _IconBadge(
                       icon: Icons.notifications_none_rounded,

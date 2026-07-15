@@ -30,6 +30,8 @@ def get_job(job_id: uuid.UUID, db: Session = Depends(get_current_org_db)) -> dic
         "error": job.error,
         "tokens_in": job.tokens_in,
         "tokens_out": job.tokens_out,
+        "reserved_credits": job.reserved_credits,
+        "charged_credits": job.charged_credits,
         "cost_cents": job.cost_cents,
         "input": job.input,
         "output": job.output,

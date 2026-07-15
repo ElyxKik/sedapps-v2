@@ -596,13 +596,19 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       );
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                'La création n\'a pas pu démarrer. Vérifie ta connexion et réessaie.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_generationErrorMessage(error)),
+        ));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  String _generationErrorMessage(Object error) {
+    final message = error.toString();
+    if (message.contains('Crédits IA insuffisants')) return message;
+    return 'La création n\'a pas pu démarrer. Vérifie ta connexion et réessaie.';
   }
 
   // ── Layout helpers ────────────────────────────────────────────────────────

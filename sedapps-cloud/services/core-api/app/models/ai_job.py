@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,6 +40,9 @@ class AiJob(UUIDPKMixin, TimestampMixin, Base):
     tokens_in: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     tokens_out: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     cost_cents: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    reserved_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    charged_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    credits_settled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class AgentRun(UUIDPKMixin, TimestampMixin, Base):

@@ -49,11 +49,15 @@ class _NewSitePageState extends ConsumerState<NewSitePage> {
       ref.read(currentJobIdProvider.notifier).state = jobId;
       if (!mounted) return;
       context.go('/projects/${project['id']}');
-    } catch (_) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                'La génération n\'a pas pu démarrer. Vérifie ta connexion et réessaie.')));
+    } catch (error) {
+      if (mounted) {
+        final message = error.toString();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(message.contains('Crédits IA insuffisants')
+              ? message
+              : 'La génération n\'a pas pu démarrer. Vérifie ta connexion et réessaie.'),
+        ));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

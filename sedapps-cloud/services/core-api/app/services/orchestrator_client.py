@@ -67,4 +67,12 @@ class OrchestratorClient:
             )
             response.raise_for_status()
             payload = response.json()
-            return payload.get("data", payload)
+            data = payload.get("data", payload)
+            result = dict(data) if isinstance(data, dict) else {"result": data}
+            usage = payload.get("tokens") if isinstance(payload, dict) else None
+            if isinstance(usage, dict):
+                result["_usage"] = {
+                    "tokens_in": int(usage.get("prompt", 0) or 0),
+                    "tokens_out": int(usage.get("completion", 0) or 0),
+                }
+            return result

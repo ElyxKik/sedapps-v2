@@ -181,6 +181,7 @@ class ApiClient {
         'monthly_quota_credits': 100,
         'plan': 'free',
         'reset_at': null,
+        'tokens_per_credit': 1000,
       };
     }
     return (await dio.get('/v1/credits/wallet')).data as Map<String, dynamic>;
@@ -241,13 +242,8 @@ class ApiClient {
         'status': 'queued'
       };
     }
-    final estimate = await creditEstimate();
-    if (estimate['can_start'] != true) {
-      throw Exception(
-          "Crédits insuffisants : ${estimate['estimated_credits']} crédits requis, ${estimate['available_credits']} disponibles.");
-    }
     return (await dio.post('/v1/projects/$projectId/generate',
-            data: {'force': true, 'locale': 'fr'}))
+            data: {'force': false, 'locale': 'fr'}))
         .data as Map<String, dynamic>;
   }
 
