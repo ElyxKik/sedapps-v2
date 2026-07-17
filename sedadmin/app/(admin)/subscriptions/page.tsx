@@ -26,7 +26,7 @@ interface BillingPlan {
   currency: string
   monthlyCredits: number
   isActive: boolean
-  stripePriceId?: string
+  chariowProductId?: string
   sortOrder: number
 }
 
@@ -38,7 +38,7 @@ interface PlanForm {
   price: string
   currency: string
   monthlyCredits: string
-  stripePriceId: string
+  chariowProductId: string
   sortOrder: string
   isActive: boolean
 }
@@ -51,7 +51,7 @@ const EMPTY_FORM: PlanForm = {
   price: '',
   currency: 'EUR',
   monthlyCredits: '50',
-  stripePriceId: '',
+  chariowProductId: '',
   sortOrder: '10',
   isActive: true,
 }
@@ -126,7 +126,7 @@ export default function SubscriptionsPage() {
       price: (plan.priceCents / 100).toString(),
       currency: plan.currency,
       monthlyCredits: plan.monthlyCredits.toString(),
-      stripePriceId: plan.stripePriceId ?? '',
+      chariowProductId: plan.chariowProductId ?? '',
       sortOrder: plan.sortOrder.toString(),
       isActive: plan.isActive,
     })
@@ -159,7 +159,7 @@ export default function SubscriptionsPage() {
         currency: form.currency.toUpperCase(),
         monthlyCredits: credits,
         isActive: form.isActive,
-        stripePriceId: form.stripePriceId.trim() || null,
+        chariowProductId: form.chariowProductId.trim() || null,
         sortOrder: Number(form.sortOrder || 0),
       }
       const response = await fetch('/api/plans', {
@@ -213,7 +213,7 @@ export default function SubscriptionsPage() {
           </div>
           <h1 className="text-2xl font-bold text-white">Plans &amp; abonnements</h1>
           <p className="mt-1 max-w-2xl text-sm text-white/40">
-            Créez vos offres mensuelles ou annuelles. Les crédits indiqués sont renouvelés chaque mois, même pour une facturation annuelle.
+            Créez vos offres mensuelles ou annuelles et liez chaque offre payante à un produit licence Chariow. Chaque acheteur recevra sa propre clé.
           </p>
         </div>
         <div className="flex gap-2">
@@ -289,7 +289,7 @@ export default function SubscriptionsPage() {
                   <p className="mt-1 text-xl font-bold text-amber-300">{plan.monthlyCredits.toLocaleString('fr-FR')}<span className="ml-1 text-xs font-normal text-white/30">/mois</span></p>
                 </div>
               </div>
-              {plan.stripePriceId && <p className="mt-3 truncate font-mono text-[11px] text-white/20">Stripe : {plan.stripePriceId}</p>}
+              {plan.chariowProductId && <p className="mt-3 truncate font-mono text-[11px] text-white/20">Chariow : {plan.chariowProductId}</p>}
             </article>
           ))}
         </div>
@@ -342,8 +342,8 @@ export default function SubscriptionsPage() {
             </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="text-xs text-white/45">Stripe Price ID <span className="text-white/20">(facultatif)</span>
-                <input value={form.stripePriceId} onChange={event => setForm(current => ({ ...current, stripePriceId: event.target.value }))} placeholder="price_…" className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 font-mono text-sm text-white outline-none focus:border-blue-500/60" />
+              <label className="text-xs text-white/45">Produit licence Chariow <span className="text-white/20">(requis pour payer)</span>
+                <input required={Number(form.price || 0) > 0} pattern="prd_[A-Za-z0-9_-]+" value={form.chariowProductId} onChange={event => setForm(current => ({ ...current, chariowProductId: event.target.value }))} placeholder="prd_…" className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 font-mono text-sm text-white outline-none focus:border-blue-500/60" />
               </label>
               <label className="text-xs text-white/45">Ordre d’affichage
                 <input type="number" min="0" step="1" value={form.sortOrder} onChange={event => setForm(current => ({ ...current, sortOrder: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none focus:border-blue-500/60" />

@@ -20,5 +20,5 @@ class BillingPlan(UUIDPKMixin, TimestampMixin, Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
     monthly_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    stripe_price_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    chariow_product_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

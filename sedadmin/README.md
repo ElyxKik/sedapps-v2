@@ -27,7 +27,7 @@ NEXT_PUBLIC_MAIN_APP_URL=http://localhost:3000
 |---|---|
 | `/` | Vue d'ensemble : stats globales, derniers inscrits/projets |
 | `/users` | Gestion des utilisateurs : ban/unban, suppression |
-| `/subscriptions` | Suivi des abonnements Stripe |
+| `/subscriptions` | Plans Chariow mensuels et annuels |
 | `/projects` | Liste de tous les projets, suppression |
 | `/domains` | Domaines enregistrés |
 | `/llm` | Configuration du provider LLM (provider, modèle, clé API) |

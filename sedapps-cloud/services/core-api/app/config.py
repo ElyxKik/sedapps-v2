@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     INTERNAL_API_TOKEN: str = "change-me-internal-token"
     SEDAPPS_ADMIN_SECRET: str = ""
 
+    CHARIOW_API_URL: str = "https://api.chariow.com/v1"
+    CHARIOW_API_KEY: str = ""
+    CHARIOW_PULSE_SECRET: str = ""
+
     # OVH Domain purchasing API credentials
     OVH_APP_KEY: str = ""
     OVH_APP_SECRET: str = ""

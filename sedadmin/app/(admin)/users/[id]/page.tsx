@@ -43,6 +43,7 @@ interface UserDetail {
     banned_until?: string
     email_confirmed_at?: string
     user_metadata?: { full_name?: string; avatar_url?: string }
+    plan: string
   }
   projects: {
     id: string
@@ -54,16 +55,16 @@ interface UserDetail {
     visits: number
     created_at: string
   }[]
-  subscriptions: {
-    id: string
+  license: {
+    provider: 'chariow'
     plan: string
-    status: string
-    current_period_end?: string
-    cancel_at_period_end?: boolean
-    stripe_subscription_id?: string
-    stripe_customer_id?: string
-    created_at: string
-  }[]
+    status?: string
+    license_id?: string
+    masked_key?: string
+    customer_id?: string
+    expires_at?: string
+    verified_at?: string
+  }
   domains: {
     id: string
     domain: string
@@ -162,8 +163,7 @@ export default function UserDetailPage() {
     )
   }
 
-  const { user, projects, subscriptions, domains } = data
-  const activeSub = subscriptions.find(s => s.status === 'active' || s.status === 'trialing')
+  const { user, projects, license, domains } = data
   const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || '—'
 
   return (
@@ -192,9 +192,7 @@ export default function UserDetailPage() {
                   : user.email_confirmed_at
                     ? <span className="badge bg-emerald-500/15 text-emerald-400">Actif</span>
                     : <span className="badge bg-yellow-500/15 text-yellow-400">Non vérifié</span>}
-                {activeSub && (
-                  <span className="badge bg-sala-primary/15 text-sala-primary-light capitalize">{activeSub.plan}</span>
-                )}
+                <span className="badge bg-sala-primary/15 text-sala-primary-light capitalize">{user.plan}</span>
               </div>
             </div>
           </div>
@@ -374,48 +372,17 @@ export default function UserDetailPage() {
           )}
         </Section>
 
-        {/* Abonnements */}
-        <Section icon={<CreditCard className="w-4 h-4 text-orange-400" />} title="Abonnements">
-          {subscriptions.length === 0 ? (
-            <p className="text-white/30 text-sm">Aucun abonnement — plan gratuit</p>
-          ) : (
-            <div className="space-y-3">
-              {subscriptions.map(s => (
-                <div key={s.id} className="border border-white/8 rounded-xl p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-white font-semibold capitalize">{s.plan}</span>
-                    <span className={`badge ${STATUS_COLORS[s.status] ?? 'bg-white/8 text-white/40'}`}>
-                      {s.status}{s.cancel_at_period_end ? ' (annulation prévue)' : ''}
-                    </span>
-                  </div>
-                  {s.current_period_end && (
-                    <p className="text-white/40 text-xs">
-                      Renouvellement : {new Date(s.current_period_end).toLocaleDateString('fr')}
-                    </p>
-                  )}
-                  <p className="text-white/25 text-xs">
-                    Depuis le {new Date(s.created_at).toLocaleDateString('fr')}
-                  </p>
-                  <div className="flex gap-3 pt-1">
-                    {s.stripe_subscription_id && (
-                      <a href={`https://dashboard.stripe.com/subscriptions/${s.stripe_subscription_id}`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-sala-primary-light hover:text-sala-primary-light flex items-center gap-1">
-                        Abonnement Stripe <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
-                    {s.stripe_customer_id && (
-                      <a href={`https://dashboard.stripe.com/customers/${s.stripe_customer_id}`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-sala-sky hover:text-sala-sky flex items-center gap-1">
-                        Client Stripe <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
+        <Section icon={<CreditCard className="w-4 h-4 text-orange-400" />} title="Licence Chariow">
+          <div className="border border-white/8 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div><p className="text-white font-semibold capitalize">Plan {license.plan}</p><p className="text-white/30 text-xs">Paiement et licence gérés par Chariow</p></div>
+              <span className={`badge ${license.status === 'active' ? STATUS_COLORS.active : license.status ? 'bg-yellow-500/15 text-yellow-300' : 'bg-white/8 text-white/40'}`}>{license.status || 'gratuit'}</span>
             </div>
-          )}
+            {license.masked_key && <p className="font-mono text-xs text-white/45">Clé : {license.masked_key}</p>}
+            {license.expires_at && <p className="text-xs text-white/40">Expiration : {new Date(license.expires_at).toLocaleDateString('fr')}</p>}
+            {license.verified_at && <p className="text-xs text-white/25">Dernière vérification : {new Date(license.verified_at).toLocaleString('fr')}</p>}
+            {license.customer_id && <a href="https://app.chariow.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-sala-sky">Ouvrir Chariow <ExternalLink className="w-3 h-3" /></a>}
+          </div>
         </Section>
 
         {/* Projets */}

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -64,8 +64,18 @@ class BillingPlanIn(BaseModel):
     currency: str = Field(default="EUR", min_length=3, max_length=3)
     monthlyCredits: int = Field(ge=0, le=10_000_000)
     isActive: bool = True
-    stripePriceId: str | None = Field(default=None, max_length=128)
+    chariowProductId: str | None = Field(
+        default=None,
+        max_length=128,
+        pattern=r"^prd_[A-Za-z0-9_-]+$",
+    )
     sortOrder: int = Field(default=0, ge=0, le=10_000)
+
+    @model_validator(mode="after")
+    def require_chariow_product_for_paid_plan(self) -> "BillingPlanIn":
+        if self.priceCents > 0 and not self.chariowProductId:
+            raise ValueError("a paid plan requires a Chariow license product ID")
+        return self
 
 
 def _plan_row(plan: BillingPlan) -> dict:
@@ -79,7 +89,7 @@ def _plan_row(plan: BillingPlan) -> dict:
         "currency": plan.currency,
         "monthlyCredits": plan.monthly_credits,
         "isActive": plan.is_active,
-        "stripePriceId": plan.stripe_price_id,
+        "chariowProductId": plan.chariow_product_id,
         "sortOrder": plan.sort_order,
         "createdAt": plan.created_at.isoformat(),
         "updatedAt": plan.updated_at.isoformat(),
@@ -95,7 +105,9 @@ def _apply_plan(plan: BillingPlan, body: BillingPlanIn) -> None:
     plan.currency = body.currency.strip().upper()
     plan.monthly_credits = body.monthlyCredits
     plan.is_active = body.isActive
-    plan.stripe_price_id = body.stripePriceId.strip() if body.stripePriceId else None
+    plan.chariow_product_id = (
+        body.chariowProductId.strip() if body.chariowProductId else None
+    )
     plan.sort_order = body.sortOrder
 
 
@@ -409,7 +421,28 @@ def user_detail(
             }
             for project in projects
         ],
-        "subscriptions": [],
+        "license": {
+            "provider": "chariow",
+            "plan": organization.plan if organization else "free",
+            "status": organization.chariow_license_status if organization else None,
+            "license_id": organization.chariow_license_id if organization else None,
+            "masked_key": (
+                f"***-{organization.chariow_license_key[-4:]}"
+                if organization and organization.chariow_license_key
+                else None
+            ),
+            "customer_id": organization.chariow_customer_id if organization else None,
+            "expires_at": (
+                organization.chariow_license_expires_at.isoformat()
+                if organization and organization.chariow_license_expires_at
+                else None
+            ),
+            "verified_at": (
+                organization.chariow_license_verified_at.isoformat()
+                if organization and organization.chariow_license_verified_at
+                else None
+            ),
+        },
         "domains": [
             {
                 "id": str(domain.id),
