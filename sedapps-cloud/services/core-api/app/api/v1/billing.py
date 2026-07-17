@@ -32,6 +32,41 @@ class CheckoutIn(BaseModel):
     discountCode: str | None = Field(default=None, max_length=100)
 
 
+_PHONE_RULES: dict[str, tuple[str, int]] = {
+    "CD": ("243", 9),
+    "CG": ("242", 9),
+    "FR": ("33", 9),
+    "BE": ("32", 9),
+    "CA": ("1", 10),
+    "US": ("1", 10),
+    "CI": ("225", 10),
+    "SN": ("221", 9),
+}
+
+
+def _normalize_phone(number: str, country_code: str) -> str:
+    normalized = number.strip()
+    if normalized.startswith("00"):
+        normalized = normalized[2:]
+    rule = _PHONE_RULES.get(country_code.upper())
+    if rule is None:
+        return normalized.lstrip("0")
+    dial_code, national_length = rule
+    if normalized.startswith(dial_code) and len(normalized) == (
+        len(dial_code) + national_length
+    ):
+        normalized = normalized[len(dial_code) :]
+    if normalized.startswith("0") and len(normalized) == national_length + 1:
+        normalized = normalized[1:]
+    if len(normalized) != national_length:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Numéro invalide pour {country_code.upper()} : "
+            f"{national_length} chiffres nationaux attendus.",
+        )
+    return normalized
+
+
 def _require_chariow() -> None:
     if not settings.CHARIOW_API_KEY:
         raise HTTPException(
@@ -295,6 +330,7 @@ def create_checkout(
             "this plan is not linked to a Chariow license product",
         )
     tenant_id = db.info["tenant_id"]
+    phone_number = _normalize_phone(body.phoneNumber, body.countryCode)
     names = (user.full_name or "Client Sala AI").strip().split(maxsplit=1)
     payload: dict[str, Any] = {
         "product_id": plan.chariow_product_id,
@@ -302,7 +338,7 @@ def create_checkout(
         "first_name": names[0],
         "last_name": names[1] if len(names) > 1 else "Sala AI",
         "phone": {
-            "number": body.phoneNumber,
+            "number": phone_number,
             "country_code": body.countryCode.upper(),
         },
         "redirect_url": "https://app.salaai.site/#/account?payment=success",

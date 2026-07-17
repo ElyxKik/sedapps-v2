@@ -50,6 +50,17 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
     'SN': 'Sénégal (+221)',
   };
 
+  static const _phoneRules = <String, ({String dialCode, int length})>{
+    'CD': (dialCode: '243', length: 9),
+    'CG': (dialCode: '242', length: 9),
+    'FR': (dialCode: '33', length: 9),
+    'BE': (dialCode: '32', length: 9),
+    'CA': (dialCode: '1', length: 10),
+    'US': (dialCode: '1', length: 10),
+    'CI': (dialCode: '225', length: 10),
+    'SN': (dialCode: '221', length: 9),
+  };
+
   @override
   void initState() {
     super.initState();
@@ -83,10 +94,12 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
   }
 
   Future<void> _checkout(BillingPlan plan) async {
-    final phone = _phoneController.text.trim();
-    if (phone.length < 7 || phone.length > 15) {
-      setState(() => _error =
-          'Entre un numéro valide de 7 à 15 chiffres, sans le signe +.');
+    final phone = _normalizedPhone();
+    final rule = _phoneRules[_countryCode];
+    if (phone == null) {
+      setState(() => _error = rule == null
+          ? 'Entre un numéro de téléphone valide.'
+          : 'Numéro invalide : ${rule.length} chiffres attendus après +${rule.dialCode}.');
       return;
     }
     setState(() {
@@ -119,6 +132,24 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  String? _normalizedPhone() {
+    var value = _phoneController.text.trim();
+    if (value.startsWith('00')) value = value.substring(2);
+    final rule = _phoneRules[_countryCode];
+    if (rule == null) {
+      value = value.replaceFirst(RegExp(r'^0+'), '');
+      return value.length >= 7 && value.length <= 15 ? value : null;
+    }
+    if (value.startsWith(rule.dialCode) &&
+        value.length == rule.dialCode.length + rule.length) {
+      value = value.substring(rule.dialCode.length);
+    }
+    if (value.startsWith('0') && value.length == rule.length + 1) {
+      value = value.substring(1);
+    }
+    return value.length == rule.length ? value : null;
   }
 
   String _friendlyError(Object error) {
@@ -468,8 +499,13 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
                 enabled: !_submitting,
                 keyboardType: TextInputType.phone,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                    labelText: 'Téléphone', hintText: '812345678'),
+                decoration: InputDecoration(
+                  labelText: 'Téléphone',
+                  prefixText: '+${_phoneRules[_countryCode]?.dialCode ?? ''} ',
+                  hintText:
+                      _countryCode == 'CD' ? '812345678' : 'Numéro national',
+                  helperText: 'L’indicatif est ajouté automatiquement.',
+                ),
               );
               if (narrow) {
                 return Column(

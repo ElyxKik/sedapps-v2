@@ -7,6 +7,7 @@ from app.api.v1.billing import (
     _apply_active_license,
     _chariow_error_message,
     _downgrade_license,
+    _normalize_phone,
     _technical_email,
     _tenant_from_technical_email,
 )
@@ -98,3 +99,10 @@ def test_chariow_error_message_flattens_validation_errors():
     assert message == (
         "Validation failed · phone.number: The phone number is invalid."
     )
+
+
+def test_phone_normalization_accepts_congolese_common_formats():
+    assert _normalize_phone("812345678", "CD") == "812345678"
+    assert _normalize_phone("0812345678", "CD") == "812345678"
+    assert _normalize_phone("243812345678", "CD") == "812345678"
+    assert _normalize_phone("00243812345678", "CD") == "812345678"
