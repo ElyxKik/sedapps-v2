@@ -7,6 +7,7 @@ import pytest
 
 from app.agents.base import AgentInput
 from app.agents.qa import QAAgent
+from app.agents.refinement_agent import RefinementAgent
 from app.agents.site_planner import SitePlannerAgent
 from app.agents.static_page_builder import StaticPageBuilderAgent
 from app.workflows.site_generation import _prompt_safe_brief
@@ -41,6 +42,29 @@ def test_prompt_safe_brief_removes_nested_data_uris() -> None:
         "logo": "[media uploaded separately]",
         "nested": ["ok", "[media uploaded separately]"],
     }
+
+
+def test_premium_refinement_keeps_onboarding_identity_contract() -> None:
+    brief = {
+        "premium": True,
+        "business_name": "Maison Kivu",
+        "tagline": "L'excellence locale",
+        "primary_color": "#123456",
+        "secondary_color": "#FEDCBA",
+        "sections": [{"type": "services", "enabled": True, "data": {"title": "Nos offres"}}],
+    }
+    prompt = RefinementAgent.__new__(RefinementAgent)._make_single_file_prompt(
+        {"path": "index.html", "content": _rich_html()},
+        brief,
+        {"score": 70, "issues": ["contraste"]},
+        {},
+    )
+
+    assert "#123456" in prompt
+    assert "#FEDCBA" in prompt
+    assert "L'excellence locale" in prompt
+    assert "services" in prompt
+    assert "ne doit jamais remplacer l'identité visuelle" in prompt
 
 
 def test_every_agent_skill_exists_and_prompts_are_role_scoped() -> None:

@@ -83,6 +83,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   final _descriptionController = TextEditingController();
   Color _primaryColor = AppColors.skyBlue;
   Color _secondaryColor = const Color(0xFF8B5CF6);
+  bool _primaryColorChosen = false;
+  bool _secondaryColorChosen = false;
   String _fontStyle = 'Inter';
   String _tone = 'professionnel';
   final Set<String> _styleKeywords = {};
@@ -347,8 +349,11 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             ? null
             : _targetAudienceController.text.trim(),
         'objectives': _objectivesController.text.trim().isEmpty
+            ? <String>[]
+            : <String>[_objectivesController.text.trim()],
+        'contact_phone': _phoneController.text.trim().isEmpty
             ? null
-            : _objectivesController.text.trim(),
+            : _phoneController.text.trim(),
         // Rich nested data stored as extra fields (extra: allow on backend)
         'identity': {
           'business_name': businessName,
@@ -513,12 +518,12 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             return Wrap(
               spacing: 12, runSpacing: 12,
               children: _stacks.map((stack) {
-                final selected = _stack == stack.id && !_premium;
+                final selected = _stack == stack.id;
                 return SizedBox(
                   width: compact ? constraints.maxWidth : (constraints.maxWidth - 12) / 2,
                   child: _StackCard(
                     stack: stack, selected: selected,
-                    onTap: () => setState(() { _stack = stack.id; _premium = false; }),
+                    onTap: () => setState(() => _stack = stack.id),
                   ),
                 );
               }).toList(),
@@ -699,8 +704,16 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           _ColorPickers(
             primaryColor: _primaryColor,
             secondaryColor: _secondaryColor,
-            onPrimaryChanged: (c) => setState(() => _primaryColor = c),
-            onSecondaryChanged: (c) => setState(() => _secondaryColor = c),
+            primaryChosen: _primaryColorChosen,
+            secondaryChosen: _secondaryColorChosen,
+            onPrimaryChanged: (c) => setState(() {
+              _primaryColor = c;
+              _primaryColorChosen = true;
+            }),
+            onSecondaryChanged: (c) => setState(() {
+              _secondaryColor = c;
+              _secondaryColorChosen = true;
+            }),
           ),
           SizedBox(height: 14 * scale),
 
@@ -768,7 +781,19 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           ),
 
           SizedBox(height: 24 * scale),
-          _Actions(back: () => setState(() => _step = 2), next: () => setState(() => _step = 4), nextLabel: 'Continuer'),
+          _Actions(
+            back: () => setState(() => _step = 2),
+            next: () {
+              if (!_primaryColorChosen || !_secondaryColorChosen) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Choisissez une couleur principale et une couleur secondaire.')),
+                );
+                return;
+              }
+              setState(() => _step = 4);
+            },
+            nextLabel: 'Continuer',
+          ),
         ],
       ),
     );
@@ -923,7 +948,10 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           Text('L\'IA va générer ton site selon tes spécifications exactes.', style: TextStyle(color: Colors.white.withValues(alpha: 0.56), fontSize: 14 * scale), textAlign: TextAlign.center),
           SizedBox(height: 26 * scale),
           _SummaryRow(label: 'Projet', value: _projectName),
-          _SummaryRow(label: 'Mode', value: _premium ? 'Premium 10K' : (_stack == 'onepage' ? 'One Page' : 'Multi Page')),
+          _SummaryRow(
+            label: 'Mode',
+            value: '${_stack == 'onepage' ? 'One Page' : 'Multi Page'}${_premium ? ' · Premium 10K' : ''}',
+          ),
           _SummaryRow(label: 'Secteur', value: _projectType),
           _SummaryRow(label: 'Ton', value: _tone),
           _SummaryRow(label: 'Domaine', value: _domain, accent: true),
@@ -1696,9 +1724,11 @@ class _FontPickerDropdown extends StatelessWidget {
 }
 
 class _ColorPickers extends StatefulWidget {
-  const _ColorPickers({required this.primaryColor, required this.secondaryColor, required this.onPrimaryChanged, required this.onSecondaryChanged});
+  const _ColorPickers({required this.primaryColor, required this.secondaryColor, required this.primaryChosen, required this.secondaryChosen, required this.onPrimaryChanged, required this.onSecondaryChanged});
   final Color primaryColor;
   final Color secondaryColor;
+  final bool primaryChosen;
+  final bool secondaryChosen;
   final ValueChanged<Color> onPrimaryChanged;
   final ValueChanged<Color> onSecondaryChanged;
 
@@ -1727,15 +1757,18 @@ class _ColorPickersState extends State<_ColorPickers> {
 
   String _hex(Color c) => '#${c.value.toRadixString(16).substring(2).toUpperCase()}';
 
-  Widget _swatch(String label, Color color, VoidCallback onTap) {
+  Widget _swatch(String label, Color color, bool chosen, VoidCallback onTap) {
     return Expanded(child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withValues(alpha: 0.10))),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(16), border: Border.all(color: chosen ? color : Colors.white.withValues(alpha: 0.24), width: chosen ? 2 : 1)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.58), fontSize: 11)),
+          Row(children: [
+            Expanded(child: Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.72), fontSize: 11))),
+            Text(chosen ? 'Choisie' : 'À choisir', style: TextStyle(color: chosen ? const Color(0xFF86EFAC) : const Color(0xFFFBBF24), fontSize: 10, fontWeight: FontWeight.w700)),
+          ]),
           const SizedBox(height: 10),
           Row(children: [
             Container(width: 28, height: 28, decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Colors.white70, width: 2))),
@@ -1750,9 +1783,9 @@ class _ColorPickersState extends State<_ColorPickers> {
   @override
   Widget build(BuildContext context) {
     return Row(children: [
-      _swatch('Couleur principale', widget.primaryColor, () => _openColorPicker('principale', widget.primaryColor, widget.onPrimaryChanged)),
+      _swatch('Couleur principale', widget.primaryColor, widget.primaryChosen, () => _openColorPicker('principale', widget.primaryColor, widget.onPrimaryChanged)),
       const SizedBox(width: 12),
-      _swatch('Couleur secondaire', widget.secondaryColor, () => _openColorPicker('secondaire', widget.secondaryColor, widget.onSecondaryChanged)),
+      _swatch('Couleur secondaire', widget.secondaryColor, widget.secondaryChosen, () => _openColorPicker('secondaire', widget.secondaryColor, widget.onSecondaryChanged)),
     ]);
   }
 }

@@ -73,8 +73,13 @@ Puis un bloc JSON avec le résumé des changements :
 
         brief_summary = {
             key: brief.get(key)
-            for key in ("business_name", "site_type", "industry", "target_audience", "tone", "locale")
-            if brief.get(key)
+            for key in (
+                "business_name", "tagline", "description", "sector", "site_type",
+                "target_audience", "objectives", "tone", "locale", "premium",
+                "stack", "pages", "primary_color", "secondary_color", "font_pref",
+                "font_style", "brand", "identity", "sections", "contact", "social",
+            )
+            if brief.get(key) not in (None, "", [], {})
         }
         qa_summary = {
             key: qa.get(key)
@@ -88,6 +93,9 @@ Puis un bloc JSON avec le résumé des changements :
         parts = [
             f"Brief essentiel :\n{json.dumps(brief_summary, ensure_ascii=False)}\n",
             f"Corrections QA prioritaires :\n{json.dumps(qa_summary, ensure_ascii=False)}\n",
+            "Contrat de fidélité : conserve mot pour mot les faits métier, coordonnées, slogan et contenus fournis. "
+            "Conserve toutes les sections activées. Utilise exactement les couleurs principale et secondaire du brief ; "
+            "le raffinement ne doit jamais remplacer l'identité visuelle de l'utilisateur.\n",
         ]
         if strategy:
             strategy_summary = {
