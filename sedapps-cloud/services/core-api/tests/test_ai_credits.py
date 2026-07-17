@@ -29,6 +29,23 @@ def test_one_credit_represents_one_thousand_tokens(tokens: int, credits: int):
     assert credits_for_tokens(tokens) == credits
 
 
+def test_free_plan_has_fifty_monthly_credits():
+    organization = Organization(
+        name="Free",
+        plan="free",
+        ai_monthly_credit_allowance=50,
+        ai_credits_used=0,
+        ai_credits_reserved=0,
+        ai_bonus_credits=0,
+        ai_credits_reset_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+    )
+
+    wallet = organization_wallet_snapshot(organization)
+
+    assert wallet["monthly_quota_credits"] == 50
+    assert wallet["available_credits"] == 50
+
+
 def test_monthly_reset_clears_used_and_reserved_credits():
     organization = Organization(
         name="Test",

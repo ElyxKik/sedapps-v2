@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import get_db_no_tenant
@@ -17,6 +19,7 @@ from app.models.organization import Organization
 from app.models.project import Project
 from app.models.user import User
 from app.models.ai_job import AiJob, JobStatus
+from app.models.billing_plan import BillingPlan
 from app.services.credits import grant_bonus_credits, organization_wallet_snapshot
 
 router = APIRouter()
@@ -50,6 +53,50 @@ class CreditGrantIn(BaseModel):
 class UserActionIn(BaseModel):
     action: str
     userId: uuid.UUID
+
+
+class BillingPlanIn(BaseModel):
+    slug: str = Field(min_length=2, max_length=64, pattern=r"^[a-z0-9-]+$")
+    name: str = Field(min_length=2, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+    billingInterval: Literal["month", "year"]
+    priceCents: int = Field(ge=0, le=100_000_000)
+    currency: str = Field(default="EUR", min_length=3, max_length=3)
+    monthlyCredits: int = Field(ge=0, le=10_000_000)
+    isActive: bool = True
+    stripePriceId: str | None = Field(default=None, max_length=128)
+    sortOrder: int = Field(default=0, ge=0, le=10_000)
+
+
+def _plan_row(plan: BillingPlan) -> dict:
+    return {
+        "id": str(plan.id),
+        "slug": plan.slug,
+        "name": plan.name,
+        "description": plan.description,
+        "billingInterval": plan.billing_interval,
+        "priceCents": plan.price_cents,
+        "currency": plan.currency,
+        "monthlyCredits": plan.monthly_credits,
+        "isActive": plan.is_active,
+        "stripePriceId": plan.stripe_price_id,
+        "sortOrder": plan.sort_order,
+        "createdAt": plan.created_at.isoformat(),
+        "updatedAt": plan.updated_at.isoformat(),
+    }
+
+
+def _apply_plan(plan: BillingPlan, body: BillingPlanIn) -> None:
+    plan.slug = body.slug.strip().lower()
+    plan.name = body.name.strip()
+    plan.description = body.description.strip() if body.description else None
+    plan.billing_interval = body.billingInterval
+    plan.price_cents = body.priceCents
+    plan.currency = body.currency.strip().upper()
+    plan.monthly_credits = body.monthlyCredits
+    plan.is_active = body.isActive
+    plan.stripe_price_id = body.stripePriceId.strip() if body.stripePriceId else None
+    plan.sort_order = body.sortOrder
 
 
 def _membership(db: Session, user_id: uuid.UUID) -> Membership:
@@ -462,6 +509,78 @@ def add_credits(
         "balance": wallet["available_credits"],
         "bonus_balance": wallet["bonus_credits"],
     }
+
+
+@router.get("/plans", dependencies=[Depends(require_admin)])
+def list_billing_plans(db: Session = Depends(get_db_no_tenant)) -> dict:
+    plans = (
+        db.query(BillingPlan)
+        .order_by(BillingPlan.sort_order.asc(), BillingPlan.price_cents.asc())
+        .all()
+    )
+    return {"plans": [_plan_row(plan) for plan in plans]}
+
+
+@router.post(
+    "/plans",
+    dependencies=[Depends(require_admin)],
+    status_code=status.HTTP_201_CREATED,
+)
+def create_billing_plan(
+    body: BillingPlanIn, db: Session = Depends(get_db_no_tenant)
+) -> dict:
+    plan = BillingPlan()
+    _apply_plan(plan, body)
+    db.add(plan)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "a plan with this slug and billing interval already exists",
+        ) from exc
+    db.refresh(plan)
+    return {"plan": _plan_row(plan)}
+
+
+@router.put("/plans/{plan_id}", dependencies=[Depends(require_admin)])
+def update_billing_plan(
+    plan_id: uuid.UUID,
+    body: BillingPlanIn,
+    db: Session = Depends(get_db_no_tenant),
+) -> dict:
+    plan = db.get(BillingPlan, plan_id)
+    if plan is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "plan not found")
+    _apply_plan(plan, body)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "a plan with this slug and billing interval already exists",
+        ) from exc
+    db.refresh(plan)
+    return {"plan": _plan_row(plan)}
+
+
+@router.delete("/plans/{plan_id}", dependencies=[Depends(require_admin)])
+def delete_billing_plan(
+    plan_id: uuid.UUID, db: Session = Depends(get_db_no_tenant)
+) -> dict:
+    plan = db.get(BillingPlan, plan_id)
+    if plan is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "plan not found")
+    if plan.slug == "free":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "the free plan cannot be deleted; deactivate it instead",
+        )
+    db.delete(plan)
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/users/actions", dependencies=[Depends(require_admin)])

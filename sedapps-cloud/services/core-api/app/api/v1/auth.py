@@ -35,7 +35,11 @@ def register(body: RegisterIn, db: Session = Depends(get_db_no_tenant)) -> Token
         password_hash=hash_password(body.password),
         full_name=body.full_name,
     )
-    org = Organization(name=body.org_name, plan="free")
+    org = Organization(
+        name=body.org_name,
+        plan="free",
+        ai_monthly_credit_allowance=50,
+    )
     db.add_all([user, org])
     db.flush()
     db.add(Membership(user_id=user.id, org_id=org.id, role=Role.owner))

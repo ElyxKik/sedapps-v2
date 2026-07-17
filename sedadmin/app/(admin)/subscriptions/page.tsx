@@ -1,528 +1,379 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { CreditCard, RefreshCw, ExternalLink, Search, TrendingUp, DollarSign, BarChart2, Loader2, AlertCircle, Plus, Pencil, Trash2, X } from 'lucide-react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
+import {
+  AlertCircle,
+  CalendarDays,
+  Check,
+  CreditCard,
+  Loader2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  X,
+  Zap,
+} from 'lucide-react'
 
-interface Sub {
+interface BillingPlan {
   id: string
-  user_id: string
-  status: string
-  plan: string
-  current_period_end?: string
-  cancel_at_period_end?: boolean
-  stripe_customer_id?: string
-  stripe_subscription_id?: string
-  created_at: string
+  slug: string
+  name: string
+  description?: string
+  billingInterval: 'month' | 'year'
+  priceCents: number
+  currency: string
+  monthlyCredits: number
+  isActive: boolean
+  stripePriceId?: string
+  sortOrder: number
 }
 
-interface RevenueData {
-  mrr: number
-  arr: number
-  mrr_trial: number
-  totalStripeRevenue: number
-  revenueThisMonth: number
-  revenueLastMonth: number
-  balance: number | null
-  stripeConfigured: boolean
-  counts: { active: number; trialing: number; canceled: number; total: number }
-  planBreakdown: Record<string, { count: number; mrr: number }>
-  subscriptions: Sub[]
+interface PlanForm {
+  slug: string
+  name: string
+  description: string
+  billingInterval: 'month' | 'year'
+  price: string
+  currency: string
+  monthlyCredits: string
+  stripePriceId: string
+  sortOrder: string
+  isActive: boolean
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  active:     'bg-emerald-500/15 text-emerald-400',
-  trialing:   'bg-blue-500/15 text-sala-sky',
-  past_due:   'bg-yellow-500/15 text-yellow-400',
-  canceled:   'bg-red-500/15 text-red-400',
-  incomplete: 'bg-white/10 text-white/40',
+const EMPTY_FORM: PlanForm = {
+  slug: '',
+  name: '',
+  description: '',
+  billingInterval: 'month',
+  price: '',
+  currency: 'EUR',
+  monthlyCredits: '50',
+  stripePriceId: '',
+  sortOrder: '10',
+  isActive: true,
 }
 
-const PLAN_COLORS: Record<string, string> = {
-  starter:    'bg-blue-500/15 text-sala-sky',
-  pro:        'bg-sala-primary/15 text-sala-primary-light',
-  business:   'bg-orange-500/15 text-orange-300',
-  enterprise: 'bg-emerald-500/15 text-emerald-300',
+function money(cents: number, currency: string) {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  }).format(cents / 100)
 }
 
-function fmt(n: number) {
-  return n.toLocaleString('fr', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
-}
-
-function StatCard({ label, value, sub, icon: Icon, color, loading }: {
-  label: string; value: string; sub?: string; icon: any; color: string; loading?: boolean
-}) {
-  return (
-    <div className="glass rounded-2xl p-5">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${color}`}>
-        <Icon className="w-5 h-5 text-white" />
-      </div>
-      {loading
-        ? <div className="h-8 w-20 bg-white/5 rounded-lg animate-pulse mb-1" />
-        : <p className="text-2xl font-bold text-white">{value}</p>}
-      <p className="text-white/40 text-xs mt-1">{label}</p>
-      {sub && <p className="text-xs text-emerald-400 mt-1">{sub}</p>}
-    </div>
-  )
-}
-
-const PLANS = ['starter', 'pro', 'business', 'enterprise']
-const STATUSES = ['active', 'trialing', 'past_due', 'canceled', 'incomplete']
-const PLAN_PRICES: Record<string, number> = { starter: 9, pro: 29, business: 79, enterprise: 199 }
-
-type ModalMode = 'create' | 'edit' | null
-
-interface FormState {
-  user_id: string
-  plan: string
-  status: string
-  current_period_end: string
-  cancel_at_period_end: boolean
-  stripe_subscription_id: string
-  stripe_customer_id: string
-}
-
-const EMPTY_FORM: FormState = {
-  user_id: '', plan: 'pro', status: 'active',
-  current_period_end: '', cancel_at_period_end: false,
-  stripe_subscription_id: '', stripe_customer_id: '',
+function slugify(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 }
 
 export default function SubscriptionsPage() {
-  const [data, setData] = useState<RevenueData | null>(null)
+  const [plans, setPlans] = useState<BillingPlan[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [modal, setModal] = useState<ModalMode>(null)
-  const [editSub, setEditSub] = useState<Sub | null>(null)
-  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [error, setError] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing] = useState<BillingPlan | null>(null)
+  const [form, setForm] = useState<PlanForm>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
-  const [formError, setFormError] = useState('')
-  const [deleteTarget, setDeleteTarget] = useState<Sub | null>(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<BillingPlan | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
-  const fetchData = async () => {
+  const loadPlans = async () => {
     setLoading(true)
-    const res = await fetch('/api/revenue')
-    const json = await res.json()
-    setData(json)
-    setLoading(false)
+    setError('')
+    try {
+      const response = await fetch('/api/plans', { cache: 'no-store' })
+      const data = await response.json()
+      if (!response.ok || data.error) throw new Error(data.error || 'Chargement impossible')
+      setPlans(data.plans ?? [])
+    } catch (reason: any) {
+      setError(reason.message || 'Chargement impossible')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { loadPlans() }, [])
+
+  const stats = useMemo(() => ({
+    active: plans.filter(plan => plan.isActive).length,
+    monthly: plans.filter(plan => plan.billingInterval === 'month').length,
+    yearly: plans.filter(plan => plan.billingInterval === 'year').length,
+    maxCredits: Math.max(0, ...plans.map(plan => plan.monthlyCredits)),
+  }), [plans])
 
   const openCreate = () => {
+    setEditing(null)
     setForm(EMPTY_FORM)
-    setFormError('')
-    setEditSub(null)
-    setModal('create')
+    setError('')
+    setModalOpen(true)
   }
 
-  const openEdit = (s: Sub) => {
+  const openEdit = (plan: BillingPlan) => {
+    setEditing(plan)
     setForm({
-      user_id: s.user_id ?? '',
-      plan: s.plan ?? 'pro',
-      status: s.status ?? 'active',
-      current_period_end: s.current_period_end ? s.current_period_end.slice(0, 10) : '',
-      cancel_at_period_end: s.cancel_at_period_end ?? false,
-      stripe_subscription_id: s.stripe_subscription_id ?? '',
-      stripe_customer_id: s.stripe_customer_id ?? '',
+      slug: plan.slug,
+      name: plan.name,
+      description: plan.description ?? '',
+      billingInterval: plan.billingInterval,
+      price: (plan.priceCents / 100).toString(),
+      currency: plan.currency,
+      monthlyCredits: plan.monthlyCredits.toString(),
+      stripePriceId: plan.stripePriceId ?? '',
+      sortOrder: plan.sortOrder.toString(),
+      isActive: plan.isActive,
     })
-    setFormError('')
-    setEditSub(s)
-    setModal('edit')
+    setError('')
+    setModalOpen(true)
   }
 
-  const closeModal = () => { setModal(null); setEditSub(null); setFormError('') }
-
-  const handleSave = async () => {
-    if (!form.user_id.trim()) { setFormError('User ID requis'); return }
-    if (!form.plan) { setFormError('Plan requis'); return }
-    setSaving(true)
-    setFormError('')
-    const payload: Record<string, unknown> = {
-      user_id: form.user_id.trim(),
-      plan: form.plan,
-      status: form.status,
-      cancel_at_period_end: form.cancel_at_period_end,
-      ...(form.current_period_end ? { current_period_end: new Date(form.current_period_end).toISOString() } : {}),
-      ...(form.stripe_subscription_id ? { stripe_subscription_id: form.stripe_subscription_id.trim() } : {}),
-      ...(form.stripe_customer_id ? { stripe_customer_id: form.stripe_customer_id.trim() } : {}),
+  const savePlan = async (event: FormEvent) => {
+    event.preventDefault()
+    const price = Number(form.price || 0)
+    const credits = Number(form.monthlyCredits)
+    if (!form.name.trim() || !form.slug.trim()) {
+      setError('Le nom et le slug sont obligatoires.')
+      return
     }
-    const res = await fetch('/api/subscriptions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(modal === 'edit' ? { action: 'update', id: editSub!.id, payload } : { action: 'create', payload }),
-    })
-    const json = await res.json()
-    if (json.error) { setFormError(json.error); setSaving(false); return }
-    await fetchData()
-    setSaving(false)
-    closeModal()
+    if (!Number.isFinite(price) || price < 0 || !Number.isInteger(credits) || credits < 0) {
+      setError('Le prix et les crédits doivent être des valeurs positives.')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    try {
+      const payload = {
+        slug: slugify(form.slug),
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        billingInterval: form.billingInterval,
+        priceCents: Math.round(price * 100),
+        currency: form.currency.toUpperCase(),
+        monthlyCredits: credits,
+        isActive: form.isActive,
+        stripePriceId: form.stripePriceId.trim() || null,
+        sortOrder: Number(form.sortOrder || 0),
+      }
+      const response = await fetch('/api/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: editing ? 'update' : 'create',
+          id: editing?.id,
+          payload,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok || data.error) throw new Error(data.error || 'Enregistrement impossible')
+      setModalOpen(false)
+      await loadPlans()
+    } catch (reason: any) {
+      setError(reason.message || 'Enregistrement impossible')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleDelete = async () => {
+  const deletePlan = async () => {
     if (!deleteTarget) return
-    setDeleteLoading(true)
-    await fetch('/api/subscriptions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'delete', id: deleteTarget.id }),
-    })
-    await fetchData()
-    setDeleteLoading(false)
-    setDeleteTarget(null)
+    setDeleting(true)
+    setError('')
+    try {
+      const response = await fetch('/api/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id: deleteTarget.id }),
+      })
+      const data = await response.json()
+      if (!response.ok || data.error) throw new Error(data.error || 'Suppression impossible')
+      setDeleteTarget(null)
+      await loadPlans()
+    } catch (reason: any) {
+      setError(reason.message || 'Suppression impossible')
+      setDeleteTarget(null)
+    } finally {
+      setDeleting(false)
+    }
   }
-
-  const subs = data?.subscriptions ?? []
-  const filtered = subs.filter(s =>
-    s.user_id?.includes(search) ||
-    s.plan?.toLowerCase().includes(search.toLowerCase()) ||
-    s.status?.toLowerCase().includes(search.toLowerCase()) ||
-    s.stripe_subscription_id?.includes(search)
-  )
-
-  const growthPct = data && data.revenueLastMonth > 0
-    ? Math.round(((data.revenueThisMonth - data.revenueLastMonth) / data.revenueLastMonth) * 100)
-    : null
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-5 md:p-8">
+      <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <CreditCard className="w-6 h-6 text-orange-400" />
-            Abonnements &amp; Revenus
-          </h1>
-          <p className="text-white/40 text-sm mt-1">{data?.counts.total ?? '…'} abonnements au total</p>
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">
+            <Sparkles className="h-4 w-4" /> Catalogue commercial
+          </div>
+          <h1 className="text-2xl font-bold text-white">Plans &amp; abonnements</h1>
+          <p className="mt-1 max-w-2xl text-sm text-white/40">
+            Créez vos offres mensuelles ou annuelles. Les crédits indiqués sont renouvelés chaque mois, même pour une facturation annuelle.
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sala-primary hover:bg-sala-primary-dark text-white text-sm font-semibold transition-all">
-            <Plus className="w-4 h-4" /> Nouvel abonnement
+        <div className="flex gap-2">
+          <button onClick={loadPlans} className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-white/50 transition hover:bg-white/10 hover:text-white" title="Actualiser">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <button onClick={fetchData} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-sm transition-all">
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <button onClick={openCreate} className="flex items-center gap-2 rounded-xl bg-sala-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500">
+            <Plus className="h-4 w-4" /> Nouveau plan
           </button>
         </div>
       </div>
 
-      {/* Stripe not configured warning */}
-      {data && !data.stripeConfigured && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-yellow-500/8 border border-yellow-500/20 text-yellow-300 text-xs mb-5">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          Clé Stripe non configurée — les montants proviennent des prix de plan par défaut. Ajoutez <code className="font-mono bg-white/10 px-1 rounded">STRIPE_SECRET_KEY</code> dans <code className="font-mono bg-white/10 px-1 rounded">sedadmin/.env.local</code>.
+      {error && !modalOpen && (
+        <div className="mb-5 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4" /> {error}
         </div>
       )}
 
-      {/* Revenue KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="MRR (actifs)" value={loading ? '…' : fmt(data?.mrr ?? 0)} icon={DollarSign} color="bg-emerald-600" loading={loading}
-          sub={data?.mrr_trial ? `+ ${fmt(data.mrr_trial)} en essai` : undefined} />
-        <StatCard label="ARR estimé" value={loading ? '…' : fmt(data?.arr ?? 0)} icon={TrendingUp} color="bg-sala-primary" loading={loading} />
-        <StatCard label="Ce mois (Stripe)" value={loading ? '…' : fmt(data?.revenueThisMonth ?? 0)} icon={BarChart2} color="bg-sala-primary" loading={loading}
-          sub={growthPct !== null ? `${growthPct >= 0 ? '+' : ''}${growthPct}% vs mois dernier` : undefined} />
-        <StatCard label="Solde Stripe" value={loading ? '…' : data?.balance !== null && data?.balance !== undefined ? fmt(data.balance) : 'N/A'} icon={CreditCard} color="bg-orange-600" loading={loading} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
-        {/* Abonnements par statut */}
-        <div className="glass rounded-2xl p-5">
-          <h2 className="text-xs font-semibold text-white/50 mb-3">Par statut</h2>
-          <div className="space-y-2">
-            {[
-              { label: 'Actifs', key: 'active', color: 'text-emerald-400', bar: 'bg-emerald-500' },
-              { label: 'En essai', key: 'trialing', color: 'text-sala-sky', bar: 'bg-blue-500' },
-              { label: 'Annulés', key: 'canceled', color: 'text-red-400', bar: 'bg-red-500' },
-            ].map(({ label, key, color, bar }) => {
-              const val = data?.counts[key as keyof typeof data.counts] ?? 0
-              const total = data?.counts.total || 1
-              return (
-                <div key={key}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-white/50">{label}</span>
-                    <span className={`font-semibold ${color}`}>{val}</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                    <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.round((val / total) * 100)}%` }} />
-                  </div>
-                </div>
-              )
-            })}
+      <div className="mb-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { label: 'Plans actifs', value: stats.active, icon: Check, color: 'text-emerald-300 bg-emerald-500/10' },
+          { label: 'Mensuels', value: stats.monthly, icon: CalendarDays, color: 'text-blue-300 bg-blue-500/10' },
+          { label: 'Annuels', value: stats.yearly, icon: CreditCard, color: 'text-violet-300 bg-violet-500/10' },
+          { label: 'Crédits max./mois', value: stats.maxCredits.toLocaleString('fr-FR'), icon: Zap, color: 'text-amber-300 bg-amber-500/10' },
+        ].map(item => (
+          <div key={item.label} className="glass rounded-2xl border border-white/5 p-4">
+            <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-xl ${item.color}`}><item.icon className="h-4 w-4" /></div>
+            <p className="text-xl font-bold text-white">{item.value}</p>
+            <p className="mt-1 text-xs text-white/35">{item.label}</p>
           </div>
-        </div>
-
-        {/* Revenus par plan */}
-        <div className="glass rounded-2xl p-5 lg:col-span-2">
-          <h2 className="text-xs font-semibold text-white/50 mb-3">Revenus par plan</h2>
-          {loading || !data ? (
-            <div className="space-y-2">
-              {[1,2,3].map(i => <div key={i} className="h-8 bg-white/5 rounded-lg animate-pulse" />)}
-            </div>
-          ) : Object.keys(data.planBreakdown).length === 0 ? (
-            <p className="text-white/30 text-sm">Aucun abonnement actif</p>
-          ) : (
-            <div className="space-y-2">
-              {Object.entries(data.planBreakdown)
-                .sort((a, b) => b[1].mrr - a[1].mrr)
-                .map(([plan, info]) => (
-                  <div key={plan} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`badge capitalize ${PLAN_COLORS[plan] ?? 'bg-white/8 text-white/50'}`}>{plan}</span>
-                      <span className="text-white/40 text-xs">{info.count} abonné{info.count > 1 ? 's' : ''}</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-white font-semibold text-sm">{fmt(info.mrr)}<span className="text-white/30 text-xs font-normal">/mois</span></p>
-                      <p className="text-white/30 text-xs">{fmt(info.mrr * 12)}/an</p>
-                    </div>
-                  </div>
-                ))}
-              <div className="flex items-center justify-between pt-2 mt-1">
-                <span className="text-white/40 text-xs font-semibold">Total MRR</span>
-                <span className="text-white font-bold">{fmt(data.mrr)}</span>
-              </div>
-            </div>
-          )}
-        </div>
+        ))}
       </div>
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-        <input
-          type="text"
-          placeholder="Rechercher par user ID, plan, statut, Stripe ID..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white text-sm placeholder-white/25 focus:outline-none focus:border-sala-primary/60"
-        />
-      </div>
-
-      {/* Table */}
-      <div className="glass rounded-2xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-white/8">
-              <th className="text-left px-4 py-3 text-white/40 font-medium">User ID</th>
-              <th className="text-left px-4 py-3 text-white/40 font-medium">Plan</th>
-              <th className="text-left px-4 py-3 text-white/40 font-medium">Statut</th>
-              <th className="text-left px-4 py-3 text-white/40 font-medium">Montant/mois</th>
-              <th className="text-left px-4 py-3 text-white/40 font-medium hidden lg:table-cell">Renouvellement</th>
-              <th className="text-left px-4 py-3 text-white/40 font-medium hidden lg:table-cell">Stripe</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan={6} className="text-center py-8 text-white/30"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Chargement…</td></tr>}
-            {!loading && filtered.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-white/30">Aucun abonnement</td></tr>}
-            {filtered.map(s => {
-              const PLAN_PRICES: Record<string, number> = { starter: 9, pro: 29, business: 79, enterprise: 199 }
-              const amount = PLAN_PRICES[s.plan]
-              return (
-                <tr key={s.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
-                  <td className="px-4 py-3 font-mono text-white/60 text-xs">{s.user_id?.slice(0, 14)}…</td>
-                  <td className="px-4 py-3">
-                    <span className={`badge capitalize ${PLAN_COLORS[s.plan] ?? 'bg-white/8 text-white/40'}`}>{s.plan ?? 'free'}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`badge ${STATUS_COLORS[s.status] ?? 'bg-white/5 text-white/40'}`}>
-                      {s.status}{s.cancel_at_period_end && ' ↓'}
+      {loading ? (
+        <div className="glass flex min-h-64 items-center justify-center rounded-2xl text-white/35"><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Chargement des plans…</div>
+      ) : plans.length === 0 ? (
+        <div className="glass flex min-h-64 flex-col items-center justify-center rounded-2xl px-6 text-center">
+          <CreditCard className="mb-3 h-10 w-10 text-white/15" />
+          <p className="font-semibold text-white">Aucun plan configuré</p>
+          <p className="mt-1 text-sm text-white/35">Créez votre première offre pour commencer.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {plans.map(plan => (
+            <article key={plan.id} className={`glass relative overflow-hidden rounded-2xl border p-5 ${plan.isActive ? 'border-white/8' : 'border-white/5 opacity-65'}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-bold text-white">{plan.name}</h2>
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${plan.billingInterval === 'year' ? 'bg-violet-500/15 text-violet-300' : 'bg-blue-500/15 text-blue-300'}`}>
+                      {plan.billingInterval === 'year' ? 'Annuel' : 'Mensuel'}
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {amount !== undefined
-                      ? <span className="text-white/80 font-semibold">{fmt(amount)}</span>
-                      : <span className="text-white/25">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-white/40 text-xs hidden lg:table-cell">
-                    {s.current_period_end ? new Date(s.current_period_end).toLocaleDateString('fr') : '—'}
-                  </td>
-                  <td className="px-4 py-3 hidden lg:table-cell">
-                    <div className="flex gap-2">
-                      {s.stripe_subscription_id && (
-                        <a href={`https://dashboard.stripe.com/subscriptions/${s.stripe_subscription_id}`}
-                          target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-sala-primary-light hover:text-sala-primary-light flex items-center gap-1">
-                          Sub <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                      {s.stripe_customer_id && (
-                        <a href={`https://dashboard.stripe.com/customers/${s.stripe_customer_id}`}
-                          target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-sala-sky hover:text-sala-sky flex items-center gap-1">
-                          Client <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openEdit(s)}
-                        className="p-1.5 rounded-lg text-white/40 hover:text-sala-sky hover:bg-sala-sky/10 transition-colors"
-                        title="Modifier">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => setDeleteTarget(s)}
-                        className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                        title="Supprimer">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Create / Edit Modal */}
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="glass rounded-2xl p-6 w-full max-w-lg shadow-2xl">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-white">
-                {modal === 'create' ? 'Nouvel abonnement' : "Modifier l'abonnement"}
-              </h2>
-              <button onClick={closeModal} className="text-white/30 hover:text-white transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs text-white/50 mb-1.5">User ID <span className="text-red-400">*</span></label>
-                <input
-                  value={form.user_id}
-                  onChange={e => setForm(f => ({ ...f, user_id: e.target.value }))}
-                  placeholder="UUID de l'utilisateur"
-                  disabled={modal === 'edit'}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-sala-primary/60 disabled:opacity-40 font-mono"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-white/50 mb-1.5">Plan <span className="text-red-400">*</span></label>
-                  <select
-                    value={form.plan}
-                    onChange={e => setForm(f => ({ ...f, plan: e.target.value }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-sala-primary/60"
-                  >
-                    {PLANS.map(p => <option key={p} value={p} className="bg-zinc-900 capitalize">{p}</option>)}
-                  </select>
+                    <span className={`rounded-full px-2 py-1 text-[10px] ${plan.isActive ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-white/35'}`}>
+                      {plan.isActive ? 'Actif' : 'Masqué'}
+                    </span>
+                  </div>
+                  <p className="mt-1 font-mono text-xs text-white/25">{plan.slug}</p>
                 </div>
-                <div>
-                  <label className="block text-xs text-white/50 mb-1.5">Statut</label>
-                  <select
-                    value={form.status}
-                    onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-sala-primary/60"
-                  >
-                    {STATUSES.map(s => <option key={s} value={s} className="bg-zinc-900">{s}</option>)}
-                  </select>
+                <div className="flex shrink-0 gap-1">
+                  <button onClick={() => openEdit(plan)} className="rounded-lg p-2 text-white/35 transition hover:bg-white/10 hover:text-blue-300" title="Modifier"><Pencil className="h-4 w-4" /></button>
+                  <button disabled={plan.slug === 'free'} onClick={() => setDeleteTarget(plan)} className="rounded-lg p-2 text-white/35 transition hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-20" title={plan.slug === 'free' ? 'Le plan gratuit ne peut pas être supprimé' : 'Supprimer'}><Trash2 className="h-4 w-4" /></button>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs text-white/50 mb-1.5">Fin de période</label>
-                <input
-                  type="date"
-                  value={form.current_period_end}
-                  onChange={e => setForm(f => ({ ...f, current_period_end: e.target.value }))}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-sala-primary/60"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-white/50 mb-1.5">Stripe Subscription ID</label>
-                  <input
-                    value={form.stripe_subscription_id}
-                    onChange={e => setForm(f => ({ ...f, stripe_subscription_id: e.target.value }))}
-                    placeholder="sub_…"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs placeholder-white/20 focus:outline-none focus:border-sala-primary/60 font-mono"
-                  />
+              <p className="mt-4 min-h-10 text-sm leading-relaxed text-white/40">{plan.description || 'Aucune description.'}</p>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-white/[0.035] p-3">
+                  <p className="text-xs text-white/30">Tarif</p>
+                  <p className="mt-1 text-xl font-bold text-white">{money(plan.priceCents, plan.currency)}<span className="ml-1 text-xs font-normal text-white/30">/{plan.billingInterval === 'year' ? 'an' : 'mois'}</span></p>
                 </div>
-                <div>
-                  <label className="block text-xs text-white/50 mb-1.5">Stripe Customer ID</label>
-                  <input
-                    value={form.stripe_customer_id}
-                    onChange={e => setForm(f => ({ ...f, stripe_customer_id: e.target.value }))}
-                    placeholder="cus_…"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-white text-xs placeholder-white/20 focus:outline-none focus:border-sala-primary/60 font-mono"
-                  />
+                <div className="rounded-xl bg-amber-500/[0.06] p-3">
+                  <p className="text-xs text-white/30">Crédits inclus</p>
+                  <p className="mt-1 text-xl font-bold text-amber-300">{plan.monthlyCredits.toLocaleString('fr-FR')}<span className="ml-1 text-xs font-normal text-white/30">/mois</span></p>
                 </div>
               </div>
-
-              <label className="flex items-center gap-3 cursor-pointer select-none">
-                <div
-                  onClick={() => setForm(f => ({ ...f, cancel_at_period_end: !f.cancel_at_period_end }))}
-                  className={`w-10 h-5 rounded-full transition-colors flex items-center px-0.5 ${form.cancel_at_period_end ? 'bg-orange-500' : 'bg-white/10'}`}
-                >
-                  <div className={`w-4 h-4 rounded-full bg-white transition-transform ${form.cancel_at_period_end ? 'translate-x-5' : 'translate-x-0'}`} />
-                </div>
-                <span className="text-sm text-white/60">Annulation prévue en fin de période</span>
-              </label>
-
-              {PLAN_PRICES[form.plan] && (
-                <div className="flex items-center gap-2 text-xs text-white/40 bg-white/3 rounded-xl px-3 py-2">
-                  <CreditCard className="w-3.5 h-3.5" />
-                  Montant : <span className="text-white/70 font-semibold">{fmt(PLAN_PRICES[form.plan])}/mois</span>
-                  <span className="text-white/25">·</span>
-                  <span className="text-white/50">{fmt(PLAN_PRICES[form.plan] * 12)}/an</span>
-                </div>
-              )}
-
-              {formError && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
-                  <AlertCircle className="w-3.5 h-3.5" /> {formError}
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button onClick={closeModal} className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 text-sm transition-colors">
-                Annuler
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 py-2.5 rounded-xl bg-sala-primary hover:bg-sala-primary-dark text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-              >
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {modal === 'create' ? 'Créer' : 'Enregistrer'}
-              </button>
-            </div>
-          </div>
+              {plan.stripePriceId && <p className="mt-3 truncate font-mono text-[11px] text-white/20">Stripe : {plan.stripePriceId}</p>}
+            </article>
+          ))}
         </div>
       )}
 
-      {/* Delete Confirm Modal */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="glass rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-            <div className="w-12 h-12 rounded-2xl bg-red-500/15 flex items-center justify-center mb-4">
-              <Trash2 className="w-6 h-6 text-red-400" />
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-sm">
+          <form onSubmit={savePlan} className="glass my-8 w-full max-w-2xl rounded-3xl border border-white/10 p-6 shadow-2xl md:p-7">
+            <div className="mb-6 flex items-start justify-between">
+              <div><p className="text-xs font-semibold uppercase tracking-widest text-blue-300">Configuration</p><h2 className="mt-1 text-xl font-bold text-white">{editing ? 'Modifier le plan' : 'Créer un plan'}</h2></div>
+              <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg p-2 text-white/30 hover:bg-white/10 hover:text-white"><X className="h-5 w-5" /></button>
             </div>
-            <h2 className="text-lg font-bold text-white mb-2">Supprimer l&apos;abonnement ?</h2>
-            <p className="text-white/40 text-sm mb-1">
-              Plan <span className="text-white/70 capitalize font-semibold">{deleteTarget.plan}</span>
-            </p>
-            <p className="text-white/30 text-xs font-mono mb-2">{deleteTarget.user_id}</p>
-            <p className="text-yellow-400/70 text-xs mb-5 flex items-start gap-1.5">
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-              Supprime uniquement l&apos;enregistrement en base. L&apos;abonnement Stripe reste actif.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 text-sm transition-colors">
-                Annuler
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleteLoading}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-              >
-                {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                Supprimer
-              </button>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="text-xs text-white/45">Nom du plan
+                <input required value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value, slug: editing ? current.slug : slugify(event.target.value) }))} placeholder="Ex. Pro" className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none focus:border-blue-500/60" />
+              </label>
+              <label className="text-xs text-white/45">Slug
+                <input required pattern="[a-z0-9-]+" value={form.slug} onChange={event => setForm(current => ({ ...current, slug: slugify(event.target.value) }))} placeholder="pro" className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 font-mono text-sm text-white outline-none focus:border-blue-500/60" />
+              </label>
+            </div>
+
+            <label className="mt-4 block text-xs text-white/45">Description
+              <textarea rows={3} maxLength={1000} value={form.description} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} placeholder="Pour qui est ce plan et que contient-il ?" className="mt-1.5 w-full resize-none rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none focus:border-blue-500/60" />
+            </label>
+
+            <div className="mt-4">
+              <p className="mb-2 text-xs text-white/45">Période de facturation</p>
+              <div className="grid grid-cols-2 gap-2 rounded-xl bg-white/[0.035] p-1.5">
+                {(['month', 'year'] as const).map(interval => (
+                  <button type="button" key={interval} onClick={() => setForm(current => ({ ...current, billingInterval: interval }))} className={`rounded-lg px-3 py-2.5 text-sm font-semibold transition ${form.billingInterval === interval ? 'bg-blue-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}>
+                    {interval === 'month' ? 'Mensuel' : 'Annuel'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <label className="text-xs text-white/45">Prix ({form.currency})
+                <input required type="number" min="0" step="0.01" value={form.price} onChange={event => setForm(current => ({ ...current, price: event.target.value }))} placeholder="29.00" className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none focus:border-blue-500/60" />
+              </label>
+              <label className="text-xs text-white/45">Devise
+                <select value={form.currency} onChange={event => setForm(current => ({ ...current, currency: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-3 text-sm text-white outline-none focus:border-blue-500/60">
+                  <option value="EUR">EUR</option><option value="USD">USD</option><option value="CDF">CDF</option>
+                </select>
+              </label>
+              <label className="text-xs text-white/45">Crédits par mois
+                <input required type="number" min="0" step="1" value={form.monthlyCredits} onChange={event => setForm(current => ({ ...current, monthlyCredits: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none focus:border-blue-500/60" />
+              </label>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <label className="text-xs text-white/45">Stripe Price ID <span className="text-white/20">(facultatif)</span>
+                <input value={form.stripePriceId} onChange={event => setForm(current => ({ ...current, stripePriceId: event.target.value }))} placeholder="price_…" className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 font-mono text-sm text-white outline-none focus:border-blue-500/60" />
+              </label>
+              <label className="text-xs text-white/45">Ordre d’affichage
+                <input type="number" min="0" step="1" value={form.sortOrder} onChange={event => setForm(current => ({ ...current, sortOrder: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 text-sm text-white outline-none focus:border-blue-500/60" />
+              </label>
+            </div>
+
+            <button type="button" onClick={() => setForm(current => ({ ...current, isActive: !current.isActive }))} className="mt-5 flex w-full items-center justify-between rounded-xl border border-white/8 bg-white/[0.025] px-4 py-3 text-left">
+              <span><span className="block text-sm font-medium text-white">Plan actif</span><span className="text-xs text-white/30">Visible et disponible pour les nouveaux abonnements.</span></span>
+              <span className={`flex h-6 w-11 items-center rounded-full p-1 transition ${form.isActive ? 'bg-emerald-500' : 'bg-white/10'}`}><span className={`h-4 w-4 rounded-full bg-white transition ${form.isActive ? 'translate-x-5' : ''}`} /></span>
+            </button>
+
+            {error && <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-xs text-red-300"><AlertCircle className="h-4 w-4" />{error}</div>}
+
+            <div className="mt-6 flex gap-3">
+              <button type="button" onClick={() => setModalOpen(false)} className="flex-1 rounded-xl bg-white/5 px-4 py-3 text-sm text-white/55 transition hover:bg-white/10">Annuler</button>
+              <button disabled={saving} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-sala-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50">{saving && <Loader2 className="h-4 w-4 animate-spin" />}{editing ? 'Enregistrer' : 'Créer le plan'}</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="glass w-full max-w-sm rounded-2xl border border-white/10 p-6">
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-red-500/10 text-red-300"><Trash2 className="h-5 w-5" /></div>
+            <h2 className="text-lg font-bold text-white">Supprimer {deleteTarget.name} ?</h2>
+            <p className="mt-2 text-sm text-white/40">Cette offre disparaîtra du catalogue. Vous pouvez aussi la modifier et la masquer.</p>
+            <div className="mt-6 flex gap-3">
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 rounded-xl bg-white/5 px-4 py-3 text-sm text-white/55">Annuler</button>
+              <button disabled={deleting} onClick={deletePlan} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{deleting && <Loader2 className="h-4 w-4 animate-spin" />}Supprimer</button>
             </div>
           </div>
         </div>
