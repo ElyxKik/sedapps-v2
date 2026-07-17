@@ -187,6 +187,57 @@ class ApiClient {
     return (await dio.get('/v1/credits/wallet')).data as Map<String, dynamic>;
   }
 
+  Future<List<Map<String, dynamic>>> billingPlans() async {
+    if (useMockData) {
+      return [
+        {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'slug': 'free',
+          'name': 'Gratuit',
+          'description': 'Pour découvrir Sala AI.',
+          'billing_interval': 'month',
+          'price_cents': 0,
+          'currency': 'EUR',
+          'monthly_credits': 50,
+          'checkout_enabled': false,
+        },
+        {
+          'id': '00000000-0000-0000-0000-000000000002',
+          'slug': 'pro',
+          'name': 'Pro',
+          'description': 'Pour créer et publier plus rapidement.',
+          'billing_interval': 'month',
+          'price_cents': 2900,
+          'currency': 'EUR',
+          'monthly_credits': 1000,
+          'checkout_enabled': true,
+        },
+      ];
+    }
+    final response = await dio.get('/v1/billing/plans');
+    final data = response.data as Map<String, dynamic>;
+    return (data['plans'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((plan) => Map<String, dynamic>.from(plan))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> createBillingCheckout({
+    required String planId,
+    required String phoneNumber,
+    required String countryCode,
+    String? discountCode,
+  }) async {
+    final response = await dio.post('/v1/billing/checkout', data: {
+      'planId': planId,
+      'phoneNumber': phoneNumber,
+      'countryCode': countryCode,
+      if (discountCode != null && discountCode.trim().isNotEmpty)
+        'discountCode': discountCode.trim(),
+    });
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<Map<String, dynamic>> creditEstimate(
       {String operation = 'site_generation', String tier = 'standard'}) async {
     if (useMockData) {

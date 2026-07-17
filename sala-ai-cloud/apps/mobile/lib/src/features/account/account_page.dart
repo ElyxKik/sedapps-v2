@@ -15,6 +15,7 @@ import '../../widgets/dialogs.dart';
 import '../../widgets/notifications.dart';
 import '../../widgets/page_scaffold.dart';
 import 'domains_section.dart';
+import 'subscription_dialog.dart';
 
 class AccountPage extends ConsumerWidget {
   const AccountPage({super.key});
@@ -446,51 +447,10 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
   }
 
   Future<void> _showBillingDialog() async {
-    final account = await _accountFuture;
     if (!mounted) return;
-    final orgName = account['org_name']?.toString() ?? 'Organisation';
-    final email = account['email']?.toString() ?? '';
-    return showDialog<void>(
+    return showSubscriptionDialog(
       context: context,
-      builder: (context) => _AccountDialog(
-        icon: Icons.credit_card_outlined,
-        title: 'Abonnement et paiement',
-        subtitle: 'Informations de facturation de ton organisation.',
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _InfoTile(
-                icon: Icons.business_outlined,
-                label: 'Organisation',
-                value: orgName),
-            const SizedBox(height: 10),
-            _InfoTile(
-                icon: Icons.mail_outline,
-                label: 'Email de facturation',
-                value: email),
-            const SizedBox(height: 14),
-            Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: .1),
-                    borderRadius: BorderRadius.circular(14)),
-                child: const Row(children: [
-                  Icon(Icons.info_outline, color: AppColors.warning),
-                  SizedBox(width: 10),
-                  Expanded(
-                      child: Text(
-                          'Le portail de paiement sera activé avec le module de facturation.',
-                          style: TextStyle(fontSize: 13)))
-                ])),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Fermer')),
-        ],
-      ),
+      repository: ref.read(billingRepositoryProvider),
     );
   }
 
