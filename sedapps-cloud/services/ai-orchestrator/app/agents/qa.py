@@ -42,7 +42,11 @@ class QAAgent(BaseAgent):
                 {"severity": "critical", "code": "no_pages", "msg": "Aucune page générée."}
             )
 
-        known_paths = {str(f.get("path", "")) for f in html_files}
+        known_paths = {
+            str(f.get("path", ""))
+            for f in files
+            if isinstance(f, dict) and f.get("path")
+        }
         brief = inp.context.get("brief", {}) if isinstance(inp.context.get("brief"), dict) else {}
         plan_pages = static_site.get("pages") if isinstance(static_site.get("pages"), list) else []
         requested_pages = brief.get("pages") if isinstance(brief.get("pages"), list) else []
@@ -96,6 +100,43 @@ class QAAgent(BaseAgent):
                 issues.append(
                     {"severity": "high", "code": "no_viewport", "page": path, "msg": "Meta viewport manquante (mobile)"}
                 )
+            if "cdn.tailwindcss.com" in lower:
+                issues.append({
+                    "severity": "critical",
+                    "code": "runtime_css_dependency",
+                    "page": path,
+                    "msg": "Tailwind CDN rend le design dépendant du réseau",
+                })
+
+            local_refs = re.findall(
+                r'(?:src|href)=["\'](?:\./)?([^"\'#?]+)["\']',
+                html,
+                re.IGNORECASE,
+            )
+            for ref in local_refs:
+                if ref.startswith(("http://", "https://", "mailto:", "tel:")):
+                    continue
+                if ref not in known_paths:
+                    issues.append({
+                        "severity": "critical" if ref.endswith((".css", ".js")) else "high",
+                        "code": "missing_local_asset",
+                        "page": path,
+                        "msg": f"Ressource locale absente : {ref}",
+                    })
+
+            section_tags = re.findall(r"<section\b[^>]*>", lower)
+            white_sections = sum(
+                1
+                for tag in section_tags
+                if re.search(r"(?:bg-white|background(?:-color)?\s*:\s*(?:#fff(?:fff)?|white))", tag)
+            )
+            if len(section_tags) >= 4 and white_sections > len(section_tags) / 2:
+                issues.append({
+                    "severity": "high",
+                    "code": "flat_white_design",
+                    "page": path,
+                    "msg": f"Design trop blanc : {white_sections}/{len(section_tags)} sections",
+                })
             if "lorem ipsum" in lower or "placeholder" in lower or "todo" in lower:
                 issues.append(
                     {"severity": "high", "code": "placeholder_content", "page": path, "msg": "Contenu placeholder détecté"}

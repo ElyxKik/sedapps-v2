@@ -26,11 +26,14 @@ class StaticPageBuilderAgent(BaseAgent):
 Tu es un senior frontend designer spécialisé en pages statiques premium.
 
 Tu génères UNE SEULE PAGE HTML à la fois, jamais tout le site.
-Tu DOIS utiliser Tailwind CSS CDN pour toute la mise en page (classes utilitaires directement sur les éléments HTML).
+Tu dois produire un rendu autonome : aucun framework CSS chargé depuis un CDN.
+Utilise des classes sémantiques et la feuille locale ./styles.css fournie par la plateforme.
 
 Contraintes HTML :
 - Document HTML complet d'exception avec <!doctype html>, head, body.
-- Inclure dans le <head> : <script src="https://cdn.tailwindcss.com"></script>, <link rel="stylesheet" href="./styles.css">, <script src="./script.js" defer></script>
+- Inclure dans le <head> : <link rel="stylesheet" href="./styles.css"> et <script src="./script.js" defer></script>.
+- Ne jamais charger Tailwind, Bootstrap ou une autre bibliothèque CSS/JS distante.
+- Le HTML doit rester lisible et structuré même si une ressource externe est indisponible.
 - Design sur-mesure pour la marque, l'audience et l'objectif du brief. Aucune section générique.
 - Header sticky et Footer cohérents avec la navigation globale du site.
 - Icônes SVG inline professionnelles pour un rendu ultra-premium.
@@ -38,7 +41,9 @@ Contraintes HTML :
 - Pas de lorem ipsum, pas de placeholder, pas de TODO. Contenu entièrement rédigé, persuasif, adapté au secteur.
 - Chaque page marketing doit contenir au moins 3 sections substantielles, 180 mots utiles et 2 images pertinentes avec alt descriptif.
 - Une page de contact doit contenir au moins 1 image, des coordonnées et un formulaire réellement complet.
-- Utilise des URLs d'images HTTPS stables (Unsplash source avec paramètres explicites autorisé). N'invente jamais un fichier local absent.
+- Si aucune image générée n'est disponible, utilise uniquement des URLs HTTPS stables et directes. N'utilise jamais via.placeholder.com, source.unsplash.com, randomuser.me ou un fichier local absent.
+- Crée un rythme visuel contrasté : hero fort, surfaces de marque, sections sombres ou teintées et cartes claires. Jamais une succession majoritairement blanche.
+- Au maximum la moitié des sections peut utiliser un fond blanc ou quasi blanc. Les textes et boutons doivent respecter WCAG AA.
 - Respecte toutes les sections demandées dans le brief. Ne fusionne ou ne supprime aucune section activée.
 - Si brief.premium == true : esthétique maximale, micro-détails, storytelling immersif.
 
@@ -305,9 +310,14 @@ IMPORTANT : Le HTML doit être dans le bloc ```html et les métadonnées dans le
                 f"static_page_builder: content too thin ({word_count} words, expected {minimum_words})"
             )
 
-        # Inject required assets if missing
-        if "cdn.tailwindcss.com" not in html:
-            html = html.replace("</head>", '  <script src="https://cdn.tailwindcss.com"></script>\n</head>')
+        # Keep generated pages autonomous: layout must never depend on a CSS
+        # framework downloaded at runtime.
+        html = re.sub(
+            r'<script\b[^>]*src=["\']https://cdn\.tailwindcss\.com[^"\']*["\'][^>]*>\s*</script>',
+            "",
+            html,
+            flags=re.IGNORECASE,
+        )
         if "styles.css" not in html:
             html = html.replace("</head>", '  <link rel="stylesheet" href="./styles.css">\n</head>')
         if "script.js" not in html:

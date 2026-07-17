@@ -134,3 +134,34 @@ def test_qa_accepts_rich_page_that_respects_onboarding() -> None:
 
     assert output.data["score"] == 100
     assert output.data["onboarding_compliance"]["passed"] is True
+
+
+def test_qa_rejects_runtime_css_missing_assets_and_flat_white_design() -> None:
+    words = "contenu professionnel utile " * 80
+    html = f"""<!doctype html><html><head>
+    <meta name="viewport" content="width=device-width"><title>Test</title>
+    <meta name="description" content="Une description utile.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./missing.css"></head><body>
+    <header>Menu</header><main><h1>Test</h1>
+    <section class="bg-white">{words}</section>
+    <section class="bg-white">{words}</section>
+    <section class="bg-white">{words}</section>
+    <section class="bg-slate-900">{words}</section>
+    <form><input name="email"></form></main><footer>Pied de page</footer></body></html>"""
+    context = {
+        "brief": {"stack": "onepage", "homepage_image_count": 0},
+        "seo": {"sitemap": "ok"},
+        "static_site": {
+            "files": [{"path": "index.html", "content": html}],
+            "pages": [{"path": "index.html", "components": ["Hero", "Content", "CTA"]}],
+            "sections": [],
+        },
+    }
+
+    output = asyncio.run(QAAgent.__new__(QAAgent).run(_input(brief=context["brief"], context=context)))
+    codes = {issue["code"] for issue in output.data["issues"]}
+
+    assert "runtime_css_dependency" in codes
+    assert "missing_local_asset" in codes
+    assert "flat_white_design" in codes
