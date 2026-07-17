@@ -47,15 +47,14 @@ class _PublishPageState extends ConsumerState<PublishPage> {
 
   Future<void> _addSearchedDomain() async {
     final result = _searchResult;
-    if (result == null || !result.available) return;
+    if (result == null || result.available || !result.checked) return;
     try {
       final domain =
           await ref.read(domainsRepositoryProvider).add(result.domain);
       ref.invalidate(managedDomainsProvider);
-      await _selectDomain(domain);
       if (mounted)
-        NotificationService.success(
-            context, '${domain.name} a été ajouté à tes domaines.');
+        NotificationService.success(context,
+            'Ajoute maintenant le TXT de vérification dans Mes domaines.');
     } catch (_) {
       if (mounted)
         NotificationService.error(
@@ -521,14 +520,17 @@ class _SearchCard extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                         child: Text(
-                            result!.available
-                                ? '${result!.domain} est disponible'
-                                : '${result!.domain} n’est pas disponible',
+                            result!.message.isNotEmpty
+                                ? result!.message
+                                : result!.available
+                                    ? '${result!.domain} est disponible'
+                                    : '${result!.domain} est déjà enregistré',
                             style:
                                 const TextStyle(fontWeight: FontWeight.w700))),
-                    if (result!.available)
+                    if (!result!.available && result!.checked)
                       FilledButton(
-                          onPressed: onAdd, child: const Text('Ajouter')),
+                          onPressed: onAdd,
+                          child: const Text('Je possède ce domaine')),
                   ])),
             ],
           ])));

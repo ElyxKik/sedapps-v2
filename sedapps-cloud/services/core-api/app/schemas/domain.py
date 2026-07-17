@@ -18,6 +18,8 @@ class DomainOut(BaseModel):
     expires_at: datetime | None
     parent_domain_id: uuid.UUID | None
     project_id: uuid.UUID | None
+    verification_name: str | None = None
+    verification_value: str | None = None
     created_at: datetime
 
 
@@ -38,3 +40,6 @@ class DomainAssign(BaseModel):
 class DomainSearchOut(BaseModel):
     domain: str
     available: bool
+    checked: bool
+    source: str
+    message: str

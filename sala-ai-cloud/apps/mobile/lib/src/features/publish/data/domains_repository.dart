@@ -28,6 +28,9 @@ class DomainsRepository {
   Future<ManagedDomain> addSubdomain(String parentId, String label) async =>
       ManagedDomain.fromJson(await _api.addSubdomain(parentId, label));
 
+  Future<ManagedDomain> verify(String domainId) async =>
+      ManagedDomain.fromJson(await _api.verifyDomain(domainId));
+
   Future<ManagedDomain> assign(String domainId, String? projectId) async =>
       ManagedDomain.fromJson(await _api.assignDomain(domainId, projectId));
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import secrets
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -39,7 +40,10 @@ def list_domains(db: Session = Depends(get_current_org_db)) -> list[Domain]:
 def search_domain(q: str = Query(min_length=3, max_length=255), db: Session = Depends(get_current_org_db)) -> DomainSearchOut:
     name = _normalize(q)
     already_managed = db.query(Domain.id).filter(Domain.name == name).first() is not None
-    return DomainSearchOut(domain=name, available=not already_managed and OvhClient().is_domain_available(name))
+    if already_managed:
+        return DomainSearchOut(domain=name, available=False, checked=True, source="salaai", message="Déjà ajouté dans Sala AI.")
+    result = OvhClient().availability(name)
+    return DomainSearchOut(domain=name, available=result.available, checked=result.checked, source=result.source, message=result.message)
 
 
 @router.post("", response_model=DomainOut, status_code=201)
@@ -47,8 +51,43 @@ def add_domain(body: DomainCreate, db: Session = Depends(get_current_org_db)) ->
     name = _normalize(body.name)
     if db.query(Domain.id).filter(Domain.name == name).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "domain already managed")
-    row = Domain(tenant_id=db.info["tenant_id"], name=name, provider=body.provider, expires_at=body.expires_at)
+    lookup = OvhClient().availability(name)
+    if not lookup.checked:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, lookup.message)
+    if lookup.available:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "domain is available but has not been purchased; buy it from a registrar before connecting it",
+        )
+    row = Domain(
+        tenant_id=db.info["tenant_id"],
+        name=name,
+        provider=body.provider,
+        expires_at=body.expires_at,
+        status=DomainStatus.pending,
+        verification_token=secrets.token_urlsafe(24),
+    )
     db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.post("/{domain_id}/verify", response_model=DomainOut)
+def verify_domain(domain_id: uuid.UUID, db: Session = Depends(get_current_org_db)) -> Domain:
+    row = _owned(db, domain_id)
+    if row.parent_domain_id is not None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "subdomains inherit verification")
+    if row.status == DomainStatus.active:
+        return row
+    if not row.verification_name or not row.verification_value:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "verification is unavailable")
+    if not OvhClient.has_verification_record(row.verification_name, row.verification_value):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "TXT verification record was not found yet",
+        )
+    row.status = DomainStatus.active
     db.commit()
     db.refresh(row)
     return row
@@ -59,6 +98,8 @@ def add_subdomain(domain_id: uuid.UUID, body: SubdomainCreate, db: Session = Dep
     parent = _owned(db, domain_id)
     if parent.parent_domain_id is not None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "select a root domain")
+    if parent.status != DomainStatus.active:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "verify the root domain first")
     name = f"{body.label.lower()}.{parent.name}"
     if db.query(Domain.id).filter(Domain.name == name).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "subdomain already exists")
@@ -72,6 +113,8 @@ def add_subdomain(domain_id: uuid.UUID, body: SubdomainCreate, db: Session = Dep
 @router.patch("/{domain_id}/assignment", response_model=DomainOut)
 def assign_domain(domain_id: uuid.UUID, body: DomainAssign, db: Session = Depends(get_current_org_db)) -> Domain:
     row = _owned(db, domain_id)
+    if body.project_id is not None and row.status != DomainStatus.active:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "verify the domain before assigning it")
     if body.project_id is not None:
         project = db.get(Project, body.project_id)
         if not project or project.tenant_id != db.info["tenant_id"]:

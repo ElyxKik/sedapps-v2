@@ -190,11 +190,14 @@ class _DomainRow extends ConsumerWidget {
                     style: const TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 3),
                 Text(
-                    domain.projectId == null
-                        ? 'Non lié à un projet'
-                        : 'Lié à un projet',
+                    domain.status == 'pending'
+                        ? 'Vérification DNS requise'
+                        : domain.projectId == null
+                            ? 'Non lié à un projet'
+                            : 'Lié à un projet',
                     style: TextStyle(
-                        color: domain.projectId == null
+                        color: domain.status == 'pending' ||
+                                domain.projectId == null
                             ? AppColors.textSecondary
                             : AppColors.success,
                         fontSize: 12)),
@@ -216,25 +219,74 @@ class _DomainRow extends ConsumerWidget {
               ]),
               if (!domain.isSubdomain) ...[
                 const SizedBox(width: 14),
-                OutlinedButton(
-                    onPressed: () async {
-                      try {
-                        await ref
-                            .read(domainsRepositoryProvider)
-                            .renew(domain.id);
-                        if (context.mounted)
-                          NotificationService.success(context,
-                              'La demande de renouvellement a été envoyée.');
-                      } catch (_) {
-                        if (context.mounted)
-                          NotificationService.error(context,
-                              'Le renouvellement n’a pas pu être demandé.');
-                      }
-                    },
-                    child: const Text('Renouveler')),
+                if (domain.status == 'pending')
+                  OutlinedButton(
+                    onPressed: () => _verifyDomain(context, ref, domain),
+                    child: const Text('Vérifier'),
+                  )
+                else
+                  OutlinedButton(
+                      onPressed: () async {
+                        try {
+                          await ref
+                              .read(domainsRepositoryProvider)
+                              .renew(domain.id);
+                          if (context.mounted)
+                            NotificationService.success(context,
+                                'La demande de renouvellement a été envoyée.');
+                        } catch (_) {
+                          if (context.mounted)
+                            NotificationService.error(context,
+                                'Le renouvellement n’a pas pu être demandé.');
+                        }
+                      },
+                      child: const Text('Renouveler')),
               ],
             ]),
           ]),
     );
+  }
+
+  Future<void> _verifyDomain(
+      BuildContext context, WidgetRef ref, ManagedDomain domain) async {
+    final record = domain.verificationName;
+    final value = domain.verificationValue;
+    if (record == null || value == null) return;
+    final verify = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Vérifier le domaine'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text(
+              'Ajoute cet enregistrement TXT chez ton fournisseur DNS, puis lance la vérification.'),
+          const SizedBox(height: 16),
+          SelectableText('Nom : $record',
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          SelectableText('Valeur : $value',
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Plus tard')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Vérifier maintenant')),
+        ],
+      ),
+    );
+    if (verify != true) return;
+    try {
+      await ref.read(domainsRepositoryProvider).verify(domain.id);
+      ref.invalidate(managedDomainsProvider);
+      if (context.mounted)
+        NotificationService.success(context, 'Domaine vérifié.');
+    } catch (_) {
+      if (context.mounted) {
+        NotificationService.error(context,
+            'Le TXT est introuvable. Attends quelques minutes puis réessaie.');
+      }
+    }
   }
 }

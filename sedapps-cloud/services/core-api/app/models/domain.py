@@ -30,9 +30,22 @@ class Domain(UUIDPKMixin, TimestampMixin, Base):
         Enum(DomainStatus, name="domain_status"), default=DomainStatus.active, nullable=False
     )
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verification_token: Mapped[str | None] = mapped_column(String(128), nullable=True)
     parent_domain_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("domains.id", ondelete="CASCADE"), nullable=True
     )
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), index=True, nullable=True
     )
+
+    @property
+    def verification_name(self) -> str | None:
+        return f"_salaai-verify.{self.name}" if self.verification_token else None
+
+    @property
+    def verification_value(self) -> str | None:
+        return (
+            f"salaai-verification={self.verification_token}"
+            if self.verification_token
+            else None
+        )

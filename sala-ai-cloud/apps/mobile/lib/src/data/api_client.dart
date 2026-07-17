@@ -395,6 +395,10 @@ class ApiClient {
               .post('/v1/domains/$parentId/subdomains', data: {'label': label}))
           .data as Map<String, dynamic>;
 
+  Future<Map<String, dynamic>> verifyDomain(String domainId) async =>
+      (await dio.post('/v1/domains/$domainId/verify')).data
+          as Map<String, dynamic>;
+
   Future<Map<String, dynamic>> assignDomain(
           String domainId, String? projectId) async =>
       (await dio.patch('/v1/domains/$domainId/assignment',
