@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     CHARIOW_BILLING_EMAIL_DOMAIN: str = "billing.salaai.site"
 
     RESEND_API_KEY: str = ""
-    RESEND_FROM_EMAIL: str = "Sala AI <factures@salaai.site>"
+    RESEND_FROM_EMAIL: str = "Sala AI <factures@email.salaai.site>"
     SALAAI_INVOICE_LOGO_URL: str = "https://app.salaai.site/icons/Icon-192.png"
     SALAAI_LEGAL_NAME: str = "Sala AI"
     SALAAI_LEGAL_ADDRESS: str = ""
