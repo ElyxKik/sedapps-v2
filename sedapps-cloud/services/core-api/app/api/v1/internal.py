@@ -163,6 +163,14 @@ def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(g
     job.cost_cents = body.cost_cents
     job.finished_at = datetime.now(timezone.utc)
     charged_credits = settle_job_credits(db, job)
+    generated_files = body.output.get("generated_files") or body.output.get("files") or []
+    has_usable_output = any(
+        isinstance(item, dict)
+        and item.get("path") == "index.html"
+        and isinstance(item.get("content"), str)
+        and len(item["content"].strip()) >= 200
+        for item in generated_files
+    )
     _append_job_event(
         job,
         {
@@ -170,11 +178,16 @@ def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(g
             "label": (
                 "Site généré avec succès"
                 if body.status == JobStatus.success
+                else "Site généré avec quelques réserves"
+                if body.status == JobStatus.degraded and has_usable_output
                 else "Résultat incomplet — génération à relancer"
                 if body.status == JobStatus.degraded
                 else "Génération échouée"
             ),
-            "status": "ok" if body.status == JobStatus.success else "failed",
+            "status": "ok"
+            if body.status == JobStatus.success
+            or (body.status == JobStatus.degraded and has_usable_output)
+            else "failed",
             "progress": 100,
         },
     )
@@ -182,10 +195,12 @@ def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(g
     project = db.get(Project, job.project_id)
     if (
         project
-        and body.status == JobStatus.success
+        and (
+            body.status == JobStatus.success
+            or (body.status == JobStatus.degraded and has_usable_output)
+        )
         and job.workflow == "site_generation"
     ):
-        generated_files = body.output.get("generated_files") or body.output.get("files") or []
         page_schema = dict(body.output.get("page_schema", {}) or {})
         if generated_files:
             page_schema = {
