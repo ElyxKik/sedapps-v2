@@ -83,6 +83,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   final _descriptionController = TextEditingController();
   Color _primaryColor = AppColors.skyBlue;
   Color _secondaryColor = const Color(0xFF0EA5E9);
+  bool _primaryColorChosen = false;
+  bool _secondaryColorChosen = false;
   String _fontStyle = 'Inter';
   String _tone = 'professionnel';
   final Set<String> _styleKeywords = {};
@@ -1034,8 +1036,16 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
             _ColorPickers(
               primaryColor: _primaryColor,
               secondaryColor: _secondaryColor,
-              onPrimaryChanged: (c) => setState(() => _primaryColor = c),
-              onSecondaryChanged: (c) => setState(() => _secondaryColor = c),
+              primaryChosen: _primaryColorChosen,
+              secondaryChosen: _secondaryColorChosen,
+              onPrimaryChanged: (c) => setState(() {
+                _primaryColor = c;
+                _primaryColorChosen = true;
+              }),
+              onSecondaryChanged: (c) => setState(() {
+                _secondaryColor = c;
+                _secondaryColorChosen = true;
+              }),
             ),
             SizedBox(height: 14 * scale),
 
@@ -1140,10 +1150,21 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           SizedBox(height: 24 * scale),
           _Actions(
               back: () => setState(() => _step = 1),
-              next: _hasUsefulDescription
+              next: _hasUsefulDescription &&
+                      _primaryColorChosen &&
+                      _secondaryColorChosen
                   ? () => setState(() => _step = 3)
                   : null,
               nextLabel: 'Continuer'),
+          if (!_primaryColorChosen || !_secondaryColorChosen)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(
+                'Choisis une couleur principale et une couleur secondaire pour continuer.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.amber.shade300, fontSize: 11),
+              ),
+            ),
         ],
       ),
     );
@@ -2491,10 +2512,14 @@ class _ColorPickers extends StatefulWidget {
   const _ColorPickers(
       {required this.primaryColor,
       required this.secondaryColor,
+      required this.primaryChosen,
+      required this.secondaryChosen,
       required this.onPrimaryChanged,
       required this.onSecondaryChanged});
   final Color primaryColor;
   final Color secondaryColor;
+  final bool primaryChosen;
+  final bool secondaryChosen;
   final ValueChanged<Color> onPrimaryChanged;
   final ValueChanged<Color> onSecondaryChanged;
 
@@ -2538,7 +2563,7 @@ class _ColorPickersState extends State<_ColorPickers> {
   String _hex(Color c) =>
       '#${c.value.toRadixString(16).substring(2).toUpperCase()}';
 
-  Widget _swatch(String label, Color color, VoidCallback onTap) {
+  Widget _swatch(String label, Color color, bool chosen, VoidCallback onTap) {
     return Expanded(
         child: InkWell(
       onTap: onTap,
@@ -2548,11 +2573,24 @@ class _ColorPickersState extends State<_ColorPickers> {
         decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10))),
+            border: Border.all(
+                color: chosen ? color : Colors.white.withValues(alpha: 0.24),
+                width: chosen ? 2 : 1)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label,
-              style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.58), fontSize: 11)),
+          Row(children: [
+            Expanded(
+                child: Text(label,
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.72),
+                        fontSize: 11))),
+            Text(chosen ? 'Choisie' : 'À choisir',
+                style: TextStyle(
+                    color: chosen
+                        ? const Color(0xFF86EFAC)
+                        : const Color(0xFFFBBF24),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700)),
+          ]),
           const SizedBox(height: 10),
           Row(children: [
             Container(
@@ -2580,12 +2618,14 @@ class _ColorPickersState extends State<_ColorPickers> {
       _swatch(
           'Couleur principale',
           widget.primaryColor,
+          widget.primaryChosen,
           () => _openColorPicker(
               'principale', widget.primaryColor, widget.onPrimaryChanged)),
       const SizedBox(width: 12),
       _swatch(
           'Couleur secondaire',
           widget.secondaryColor,
+          widget.secondaryChosen,
           () => _openColorPicker(
               'secondaire', widget.secondaryColor, widget.onSecondaryChanged)),
     ]);
