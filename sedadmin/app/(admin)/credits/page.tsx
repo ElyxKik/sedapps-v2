@@ -29,6 +29,7 @@ interface CreditUser {
   plan: string
   balance: number
   includedQuota: number
+  includedRemaining: number
   bonusBalance: number
   reserved: number
   usedThisMonth: number
@@ -158,8 +159,8 @@ export default function CreditsAdminPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         {[
-          { label: 'Crédits disponibles', value: totals.available, icon: WalletCards, color: 'text-amber-400' },
-          { label: 'Bonus disponibles', value: totals.bonus, icon: Gift, color: 'text-violet-400' },
+          { label: 'Total utilisable', value: totals.available, icon: WalletCards, color: 'text-amber-400' },
+          { label: 'Crédits réellement ajoutés', value: totals.bonus, icon: Gift, color: 'text-violet-400' },
           { label: 'Consommés ce mois', value: totals.used, icon: TrendingDown, color: 'text-rose-400' },
         ].map(card => (
           <div key={card.label} className="glass rounded-2xl border border-white/5 p-5">
@@ -202,13 +203,14 @@ export default function CreditsAdminPage() {
           <div className="py-16 text-center text-white/40">Aucun utilisateur trouvé.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-sm">
+            <table className="w-full min-w-[1180px] text-sm">
               <thead className="border-b border-white/10 bg-white/[0.02] text-xs uppercase tracking-wide text-white/35">
                 <tr>
                   <th className="px-5 py-4 text-left font-medium">Utilisateur</th>
                   <th className="px-4 py-4 text-left font-medium">Plan</th>
-                  <th className="px-4 py-4 text-right font-medium">Disponible</th>
-                  <th className="px-4 py-4 text-right font-medium">Bonus</th>
+                  <th className="px-4 py-4 text-right font-medium">Total utilisable</th>
+                  <th className="px-4 py-4 text-right font-medium">Quota plan restant</th>
+                  <th className="px-4 py-4 text-right font-medium">Crédits ajoutés</th>
                   <th className="px-4 py-4 text-right font-medium">Utilisé ce mois</th>
                   <th className="px-4 py-4 text-right font-medium">Tokens suivis</th>
                   <th className="px-5 py-4 text-right font-medium">Actions</th>
@@ -228,6 +230,7 @@ export default function CreditsAdminPage() {
                       </span>
                     </td>
                     <td className="px-4 py-4 text-right font-semibold text-amber-400">{number.format(user.balance)}</td>
+                    <td className="px-4 py-4 text-right text-blue-300">{number.format(user.includedRemaining)}</td>
                     <td className="px-4 py-4 text-right text-violet-400">{number.format(user.bonusBalance)}</td>
                     <td className="px-4 py-4 text-right text-rose-400">{number.format(user.usedThisMonth)}</td>
                     <td className="px-4 py-4 text-right text-white/55">{number.format(user.totalTokens)}</td>
