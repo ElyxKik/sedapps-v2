@@ -3,8 +3,8 @@ from __future__ import annotations
 import hmac
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -16,7 +16,9 @@ from app.config import settings
 from app.models.billing_plan import BillingPlan
 from app.models.membership import Membership
 from app.models.organization import Organization
+from app.models.payment_receipt import PaymentReceipt
 from app.models.user import User
+from app.services.invoices import InvoiceDeliveryError, send_payment_invoice
 
 router = APIRouter()
 
@@ -26,10 +28,6 @@ class CheckoutIn(BaseModel):
     phoneNumber: str = Field(min_length=5, max_length=30, pattern=r"^[0-9]+$")
     countryCode: str = Field(min_length=2, max_length=2, pattern=r"^[A-Za-z]{2}$")
     discountCode: str | None = Field(default=None, max_length=100)
-
-
-class ActivateLicenseIn(BaseModel):
-    licenseKey: str = Field(min_length=8, max_length=255)
 
 
 def _require_chariow() -> None:
@@ -124,6 +122,109 @@ def _downgrade_license(organization: Organization, status_value: str) -> None:
     organization.chariow_license_verified_at = datetime.now(timezone.utc)
 
 
+def _technical_email(tenant_id: uuid.UUID) -> str:
+    return f"chariow+{tenant_id}@{settings.CHARIOW_BILLING_EMAIL_DOMAIN}"
+
+
+def _tenant_from_technical_email(value: str | None) -> uuid.UUID | None:
+    if not value:
+        return None
+    local, separator, domain = value.lower().partition("@")
+    if separator != "@" or domain != settings.CHARIOW_BILLING_EMAIL_DOMAIN.lower():
+        return None
+    prefix = "chariow+"
+    if not local.startswith(prefix):
+        return None
+    try:
+        return uuid.UUID(local.removeprefix(prefix))
+    except ValueError:
+        return None
+
+
+def _amount_cents(sale: dict) -> tuple[int, str]:
+    amount = sale.get("amount") or {}
+    try:
+        cents = int(
+            (Decimal(str(amount.get("value", "0"))) * 100).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP
+            )
+        )
+    except (InvalidOperation, ValueError):
+        cents = 0
+    return max(0, cents), str(amount.get("currency") or "EUR").upper()[:3]
+
+
+def _successful_sale(payload: dict, db: Session) -> dict:
+    sale = payload.get("sale") or {}
+    product = payload.get("product") or {}
+    customer = payload.get("customer") or {}
+    metadata = sale.get("custom_metadata") or {}
+    sale_id = str(sale.get("id") or "")
+    if not sale_id or sale.get("status") != "completed":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid sale")
+    try:
+        tenant_id = uuid.UUID(str(metadata["salaai_org_id"]))
+        user_id = uuid.UUID(str(metadata["salaai_user_id"]))
+        plan_id = uuid.UUID(str(metadata["salaai_plan_id"]))
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "missing Sala AI checkout metadata",
+        ) from exc
+
+    user = db.get(User, user_id)
+    organization = db.get(Organization, tenant_id)
+    plan = db.get(BillingPlan, plan_id)
+    membership = (
+        db.query(Membership)
+        .filter(Membership.user_id == user_id, Membership.org_id == tenant_id)
+        .first()
+    )
+    if not user or not organization or not plan or not membership:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "checkout owner not found")
+    if plan.chariow_product_id != product.get("id"):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "product mismatch")
+    if str(customer.get("email") or "").lower() != _technical_email(tenant_id).lower():
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "technical billing email mismatch",
+        )
+
+    receipt = (
+        db.query(PaymentReceipt).filter(PaymentReceipt.sale_id == sale_id).first()
+    )
+    if receipt is None:
+        amount_cents, currency = _amount_cents(sale)
+        receipt = PaymentReceipt(
+            sale_id=sale_id,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            plan_id=plan_id,
+            amount_cents=amount_cents,
+            currency=currency,
+            status="paid",
+        )
+        db.add(receipt)
+
+    organization.plan = plan.slug
+    organization.ai_monthly_credit_allowance = plan.monthly_credits
+    organization.chariow_customer_id = customer.get("id")
+    if organization.chariow_license_status != "active":
+        organization.chariow_license_status = "paid_pending_license"
+    organization.chariow_license_verified_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(receipt)
+
+    if receipt.invoice_sent_at is None:
+        try:
+            receipt.resend_email_id = send_payment_invoice(receipt, user, plan)
+        except InvoiceDeliveryError as exc:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+        receipt.invoice_sent_at = datetime.now(timezone.utc)
+        db.commit()
+    return {"ok": True, "handled": True, "invoice_sent": True}
+
+
 @router.get("/plans")
 def public_plans(db: Session = Depends(get_current_org_db)) -> dict:
     plans = (
@@ -170,7 +271,7 @@ def create_checkout(
     names = (user.full_name or "Client Sala AI").strip().split(maxsplit=1)
     payload: dict[str, Any] = {
         "product_id": plan.chariow_product_id,
-        "email": user.email,
+        "email": _technical_email(tenant_id),
         "first_name": names[0],
         "last_name": names[1] if len(names) > 1 else "Sala AI",
         "phone": {
@@ -200,61 +301,11 @@ def current_license(db: Session = Depends(get_current_org_db)) -> dict:
     organization = db.get(Organization, db.info["tenant_id"])
     if organization is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "organization not found")
-    key = organization.chariow_license_key or ""
     return {
         "plan": organization.plan,
         "status": organization.chariow_license_status,
-        "masked_key": f"***-{key[-4:]}" if key else None,
         "expires_at": organization.chariow_license_expires_at,
         "verified_at": organization.chariow_license_verified_at,
-    }
-
-
-@router.post("/license/activate")
-def activate_license(
-    body: ActivateLicenseIn,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_current_org_db),
-) -> dict:
-    key = body.licenseKey.strip()
-    encoded_key = quote(key, safe="")
-    data = _chariow("GET", f"/licenses/{encoded_key}")
-    customer = data.get("customer") or {}
-    product = data.get("product") or {}
-    if str(customer.get("email", "")).lower() != user.email.lower():
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            "this license belongs to another customer",
-        )
-    plan = _plan_for_product(db, product.get("id"))
-    if plan is None:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "this Chariow product is not linked to a Sala AI plan",
-        )
-    if data.get("status") == "pending_activation":
-        _chariow(
-            "POST",
-            f"/licenses/{encoded_key}/activate",
-            payload={"device_identifier": f"salaai-org:{db.info['tenant_id']}"},
-        )
-        data = _chariow("GET", f"/licenses/{encoded_key}")
-    if not data.get("is_active") or data.get("is_expired"):
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "the Chariow license is inactive or expired",
-        )
-    organization = db.get(Organization, db.info["tenant_id"])
-    if organization is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "organization not found")
-    _apply_active_license(organization, plan, data, customer)
-    db.commit()
-    return {
-        "ok": True,
-        "plan": plan.slug,
-        "monthly_credits": plan.monthly_credits,
-        "status": organization.chariow_license_status,
-        "expires_at": organization.chariow_license_expires_at,
     }
 
 
@@ -269,6 +320,8 @@ def chariow_pulse(
     ):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid pulse secret")
     event = str(payload.get("event") or "")
+    if event == "successful.sale":
+        return _successful_sale(payload, db)
     license_data = payload.get("license") or {}
     customer = payload.get("customer") or {}
     product = payload.get("product") or {}
@@ -283,19 +336,9 @@ def chariow_pulse(
             .first()
         )
     if organization is None and customer.get("email"):
-        user = (
-            db.query(User)
-            .filter(User.email.ilike(str(customer["email"])))
-            .first()
-        )
-        if user:
-            membership = (
-                db.query(Membership)
-                .filter(Membership.user_id == user.id)
-                .order_by(Membership.created_at.asc())
-                .first()
-            )
-            organization = db.get(Organization, membership.org_id) if membership else None
+        technical_tenant_id = _tenant_from_technical_email(customer.get("email"))
+        if technical_tenant_id:
+            organization = db.get(Organization, technical_tenant_id)
 
     if organization is None:
         return {"ok": True, "handled": False}

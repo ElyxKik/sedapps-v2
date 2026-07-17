@@ -1,6 +1,14 @@
 from datetime import datetime, timezone
 
-from app.api.v1.billing import _apply_active_license, _downgrade_license
+import uuid
+
+from app.api.v1.billing import (
+    _amount_cents,
+    _apply_active_license,
+    _downgrade_license,
+    _technical_email,
+    _tenant_from_technical_email,
+)
 from app.models.billing_plan import BillingPlan
 from app.models.organization import Organization
 
@@ -60,3 +68,19 @@ def test_expired_license_returns_to_free_without_losing_bonus_credits():
     assert organization.ai_bonus_credits == 75
     assert organization.ai_credits_reserved == 0
     assert organization.chariow_license_status == "expired"
+
+
+def test_chariow_uses_a_technical_email_that_maps_back_to_the_organization():
+    tenant_id = uuid.uuid4()
+
+    technical_email = _technical_email(tenant_id)
+
+    assert technical_email != "customer@example.com"
+    assert _tenant_from_technical_email(technical_email) == tenant_id
+
+
+def test_sale_amount_is_converted_to_integer_cents():
+    assert _amount_cents({"amount": {"value": 79.20, "currency": "usd"}}) == (
+        7920,
+        "USD",
+    )

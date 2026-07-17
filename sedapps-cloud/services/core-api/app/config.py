@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     CHARIOW_API_URL: str = "https://api.chariow.com/v1"
     CHARIOW_API_KEY: str = ""
     CHARIOW_PULSE_SECRET: str = ""
+    CHARIOW_BILLING_EMAIL_DOMAIN: str = "billing.salaai.site"
+
+    RESEND_API_KEY: str = ""
+    RESEND_FROM_EMAIL: str = "Sala AI <factures@salaai.site>"
+    SALAAI_INVOICE_LOGO_URL: str = "https://app.salaai.site/icons/Icon-192.png"
+    SALAAI_LEGAL_NAME: str = "Sala AI"
+    SALAAI_LEGAL_ADDRESS: str = ""
+    SALAAI_TAX_ID: str = ""
 
     # OVH Domain purchasing API credentials
     OVH_APP_KEY: str = ""

@@ -13,6 +13,7 @@ from app.models.comment import Comment, CommentStatus
 from app.models.domain import Domain, DomainStatus
 from app.models.credit_transaction import CreditTransaction
 from app.models.billing_plan import BillingPlan
+from app.models.payment_receipt import PaymentReceipt
 
 __all__ = [
     "Organization",
@@ -43,4 +44,5 @@ __all__ = [
     "DomainStatus",
     "CreditTransaction",
     "BillingPlan",
+    "PaymentReceipt",
 ]
