@@ -65,6 +65,11 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
   void initState() {
     super.initState();
     _data = _load();
+    _phoneController.addListener(_refreshPhoneValidation);
+  }
+
+  void _refreshPhoneValidation() {
+    if (mounted) setState(() {});
   }
 
   Future<({List<BillingPlan> plans, CreditWallet wallet})> _load() async {
@@ -78,6 +83,7 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
 
   @override
   void dispose() {
+    _phoneController.removeListener(_refreshPhoneValidation);
     _phoneController.dispose();
     _discountController.dispose();
     super.dispose();
@@ -151,6 +157,8 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
     }
     return value.length == rule.length ? value : null;
   }
+
+  bool get _hasValidPhone => _normalizedPhone() != null;
 
   String _friendlyError(Object error) {
     if (error is DioException) {
@@ -305,6 +313,8 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
                   ],
                 ),
                 const SizedBox(height: 20),
+                _billingDetails(),
+                const SizedBox(height: 24),
                 if (plans.isEmpty)
                   const _EmptyInterval()
                 else
@@ -325,8 +335,6 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
                       ],
                     );
                   }),
-                const SizedBox(height: 24),
-                _billingDetails(),
                 if (_error != null) ...[
                   const SizedBox(height: 14),
                   Container(
@@ -382,6 +390,11 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
   Widget _planCard(BillingPlan plan, String currentPlan) {
     final current = plan.slug == currentPlan;
     final processing = _submitting && _selectedPlanId == plan.id;
+    final canCheckout = _hasValidPhone &&
+        !current &&
+        !plan.isFree &&
+        plan.checkoutEnabled &&
+        !_submitting;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       padding: const EdgeInsets.all(18),
@@ -437,10 +450,7 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed:
-                  current || plan.isFree || !plan.checkoutEnabled || _submitting
-                      ? null
-                      : () => _checkout(plan),
+              onPressed: canCheckout ? () => _checkout(plan) : null,
               child: processing
                   ? const SizedBox(
                       width: 18,
@@ -448,9 +458,11 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : Text(current
                       ? 'Plan actuel'
-                      : plan.checkoutEnabled
-                          ? 'Choisir ${plan.name}'
-                          : 'Bientôt disponible'),
+                      : !plan.checkoutEnabled
+                          ? 'Bientôt disponible'
+                          : !_hasValidPhone
+                              ? 'Ajoute ton numéro'
+                              : 'Choisir ${plan.name}'),
             ),
           ),
         ],
@@ -474,11 +486,11 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Coordonnées de paiement',
+            const Text('1. Ton numéro pour le paiement',
                 style: TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
             const Text(
-                'Demandées par Chariow pour préparer le checkout sécurisé.',
+                'Renseigne-le avant de choisir une offre. Chariow l’utilise pour préparer le paiement sécurisé.',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
             const SizedBox(height: 14),
             LayoutBuilder(builder: (context, constraints) {

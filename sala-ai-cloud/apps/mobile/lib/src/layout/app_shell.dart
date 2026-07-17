@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import '../features/agents/agent_state.dart';
 import '../features/account/data/account_summary_provider.dart';
 import '../features/account/data/billing_repository.dart';
+import '../features/account/subscription_dialog.dart';
 
 /// Controls the desktop navigation width from full-screen project workspaces.
 final sidebarExpandedProvider = StateProvider<bool>((ref) => true);
@@ -105,7 +106,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: _MobileAppBar(),
-        body: widget.child,
+        body: _SubscriptionPromptBanner(child: widget.child),
         bottomNavigationBar: _MobileBottomNav(
           currentIndex: idx,
           accountName: account?.firstName ?? 'Compte',
@@ -130,11 +131,69 @@ class _AppShellState extends ConsumerState<AppShell> {
           ),
           Expanded(
             child: ClipRRect(
-              child: widget.child,
+              child: _SubscriptionPromptBanner(child: widget.child),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SubscriptionPromptBanner extends ConsumerWidget {
+  const _SubscriptionPromptBanner({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final wallet = ref.watch(creditWalletProvider);
+    final isFree = wallet.asData?.value.plan.trim().toLowerCase() == 'free';
+
+    if (!isFree) return child;
+
+    return Column(
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: Ink(
+            decoration: const BoxDecoration(gradient: AppColors.heroGradient),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+              child: Row(
+                children: [
+                  const Icon(Icons.auto_awesome_rounded, color: Colors.white),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Passe à un plan Sala AI pour créer davantage et obtenir plus de crédits IA.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton(
+                    onPressed: () => showSubscriptionDialog(
+                      context: context,
+                      repository: ref.read(billingRepositoryProvider),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white70),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                    ),
+                    child: const Text('Voir les offres'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Expanded(child: child),
+      ],
     );
   }
 }
