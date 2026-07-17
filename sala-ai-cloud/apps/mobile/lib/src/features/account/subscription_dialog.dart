@@ -75,9 +75,18 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
   Future<({List<BillingPlan> plans, CreditWallet wallet})> _load() async {
     final plans = await widget.repository.plans();
     final wallet = await widget.repository.wallet();
-    final currentIsYearly = plans.any(
+    final paidPlans = plans.where((plan) => !plan.isFree).toList();
+    final hasMonthlyPlans =
+        paidPlans.any((plan) => plan.billingInterval == 'month');
+    final hasYearlyPlans =
+        paidPlans.any((plan) => plan.billingInterval == 'year');
+    final currentIsYearly = paidPlans.any(
         (plan) => plan.slug == wallet.plan && plan.billingInterval == 'year');
-    if (currentIsYearly) _interval = 'year';
+    if ((currentIsYearly && hasYearlyPlans) || !hasMonthlyPlans) {
+      _interval = 'year';
+    } else {
+      _interval = 'month';
+    }
     return (plans: plans, wallet: wallet);
   }
 
@@ -246,7 +255,12 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
 
   Widget _content(
       ({List<BillingPlan> plans, CreditWallet wallet}) data, bool compact) {
-    final plans = data.plans
+    final paidPlans = data.plans.where((plan) => !plan.isFree).toList();
+    final hasMonthlyPlans =
+        paidPlans.any((plan) => plan.billingInterval == 'month');
+    final hasYearlyPlans =
+        paidPlans.any((plan) => plan.billingInterval == 'year');
+    final plans = paidPlans
         .where((plan) => plan.billingInterval == _interval)
         .toList(growable: false);
     return Column(
@@ -299,16 +313,18 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
                   runSpacing: 12,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                          color: AppColors.surfaceMuted,
-                          borderRadius: BorderRadius.circular(13)),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        _intervalButton('month', 'Mensuel'),
-                        _intervalButton('year', 'Annuel'),
-                      ]),
-                    ),
+                    if (hasMonthlyPlans || hasYearlyPlans)
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                            color: AppColors.surfaceMuted,
+                            borderRadius: BorderRadius.circular(13)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          if (hasMonthlyPlans)
+                            _intervalButton('month', 'Mensuel'),
+                          if (hasYearlyPlans) _intervalButton('year', 'Annuel'),
+                        ]),
+                      ),
                     _CurrentPlanChip(plan: data.wallet.plan),
                   ],
                 ),
