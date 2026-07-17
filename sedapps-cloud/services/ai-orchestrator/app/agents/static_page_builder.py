@@ -122,7 +122,9 @@ IMPORTANT : Le HTML doit être dans le bloc ```html et les métadonnées dans le
         import time
         t0 = time.perf_counter()
         warnings: list[str] = []
-        max_retries = 2
+        # A full-page retry is expensive. One clean retry is enough; the
+        # deterministic fallback still produces a usable page afterwards.
+        max_retries = 1
         messages = [
             {"role": "system", "content": self.composed_system_prompt(inp)},
             {"role": "user", "content": self.user_prompt(inp)},
@@ -157,7 +159,8 @@ IMPORTANT : Le HTML doit être dans le bloc ```html et les métadonnées dans le
                     last_error = parse_err
                     if attempt < max_retries:
                         warnings.append(f"Attempt {attempt + 1} failed: {parse_err}")
-                        messages.append({"role": "assistant", "content": resp.content})
+                        # Do not replay the malformed full HTML response: it can
+                        # add tens of thousands of input tokens to the retry.
                         messages.append({
                             "role": "user",
                             "content": (

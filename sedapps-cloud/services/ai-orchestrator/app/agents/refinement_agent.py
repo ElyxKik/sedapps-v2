@@ -21,8 +21,8 @@ _CHANGES_FENCE_RE = re.compile(r"```json\s*([\s\S]*?)```", re.IGNORECASE)
 class RefinementAgent(BaseAgent):
     name = "refinement_agent"
     default_temperature = 0.35
-    # Augmenté pour traiter un fichier HTML complet (12 000–20 000 chars) + génération
-    default_max_tokens = 24000
+    # A refinement should be more concise than the initial generation.
+    default_max_tokens = 12000
 
     def system_prompt(self, inp: AgentInput) -> str:  # type: ignore[override]
         """Système prompt pour raffiner UN seul fichier HTML."""
@@ -39,7 +39,7 @@ Objectifs : rendre le site moins template, plus premium, plus convaincant, avec 
 
 Contraintes :
 - Conserve les chemins de fichiers existants : {file_list}
-- Ne casse pas les liens CSS/JS existants (./styles.css, ./script.js, cdn.tailwindcss.com).
+- Ne casse pas les liens CSS/JS locaux existants (./styles.css, ./script.js).
 - Pas d'emojis sauf demande explicite dans le brief.
 - N'ajoute aucune dépendance externe supplémentaire.
 - Retourne le fichier HTML COMPLET, pas juste les parties modifiées.
@@ -71,9 +71,23 @@ Puis un bloc JSON avec le résumé des changements :
         # Passe le HTML COMPLET — sans troncature
         html_content = str(file.get("content", ""))
 
+        brief_summary = {
+            key: brief.get(key)
+            for key in ("business_name", "site_type", "industry", "target_audience", "tone", "locale")
+            if brief.get(key)
+        }
+        qa_summary = {
+            key: qa.get(key)
+            for key in ("score", "issues", "required_refinements")
+            if qa.get(key)
+        }
+        # Keep prompts bounded even when an upstream audit is unexpectedly verbose.
+        for key in ("issues", "required_refinements"):
+            if isinstance(qa_summary.get(key), list):
+                qa_summary[key] = qa_summary[key][:8]
         parts = [
-            f"Brief :\n{json.dumps(brief, ensure_ascii=False, indent=2)}\n",
-            f"Audit QA :\n{json.dumps(qa, ensure_ascii=False, indent=2)}\n",
+            f"Brief essentiel :\n{json.dumps(brief_summary, ensure_ascii=False)}\n",
+            f"Corrections QA prioritaires :\n{json.dumps(qa_summary, ensure_ascii=False)}\n",
         ]
         if strategy:
             strategy_summary = {
@@ -118,7 +132,7 @@ Puis un bloc JSON avec le résumé des changements :
             {"role": "user", "content": self._make_single_file_prompt(file, brief, qa, strategy)},
         ]
         tokens_in = tokens_out = 0
-        max_retries = 1
+        max_retries = 0
         last_error: Exception | None = None
 
         for attempt in range(max_retries + 1):
@@ -138,17 +152,6 @@ Puis un bloc JSON avec le résumé des changements :
                     return data, tokens_in, tokens_out, data.pop("_changes", [])
                 except (ValueError, KeyError) as parse_err:
                     last_error = parse_err
-                    if attempt < max_retries:
-                        messages.append({"role": "assistant", "content": resp.content})
-                        messages.append({
-                            "role": "user",
-                            "content": (
-                                f"Erreur : {parse_err}\n\n"
-                                "Utilise le format ### FILE: chemin.html suivi de ```html ... ``` pour le fichier complet. "
-                                "Ne mets JAMAIS le HTML dans du JSON. Retourne le fichier HTML ENTIER."
-                            ),
-                        })
-                        continue
                     raise parse_err
 
             except (LLMError, ValueError, KeyError) as e:

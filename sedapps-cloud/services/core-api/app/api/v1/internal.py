@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -163,6 +163,18 @@ def complete_job(job_id: uuid.UUID, body: JobCompleteIn, db: Session = Depends(g
     job.cost_cents = body.cost_cents
     job.finished_at = datetime.now(timezone.utc)
     charged_credits = settle_job_credits(db, job)
+    # Failure callbacks may not have access to the workflow's in-memory token
+    # totals. Agent runs are already persisted, so retain the real operational
+    # usage for analytics without retroactively billing a failed job.
+    if body.tokens_in == 0 and body.tokens_out == 0:
+        usage = db.execute(
+            select(
+                func.coalesce(func.sum(AgentRun.tokens_in), 0),
+                func.coalesce(func.sum(AgentRun.tokens_out), 0),
+            ).where(AgentRun.job_id == job.id)
+        ).one()
+        job.tokens_in = int(usage[0] or 0)
+        job.tokens_out = int(usage[1] or 0)
     generated_files = body.output.get("generated_files") or body.output.get("files") or []
     has_usable_output = any(
         isinstance(item, dict)
