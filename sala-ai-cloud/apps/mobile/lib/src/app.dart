@@ -7,6 +7,7 @@ import 'data/theme_provider.dart';
 import 'features/account/account_page.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/auth_session.dart';
+import 'features/auth/session_loading_page.dart';
 import 'features/cms/cms_page.dart';
 import 'features/dashboard/dashboard_page.dart';
 import 'features/onboarding/onboarding_page.dart';
@@ -34,16 +35,35 @@ class SalaAIApp extends ConsumerWidget {
 
 final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/session',
     redirect: (context, state) {
       final auth = ref.read(authSessionProvider);
       final onLogin = state.matchedLocation == '/login';
-      if (auth == AuthStatus.loading) return onLogin ? null : '/login';
+      final onSession = state.matchedLocation == '/session';
+      if (auth == AuthStatus.loading) {
+        if (onSession) return null;
+        final from = Uri.encodeComponent(state.uri.toString());
+        return '/session?from=$from';
+      }
       if (auth == AuthStatus.unauthenticated) return onLogin ? null : '/login';
+      if (auth == AuthStatus.authenticated && onSession) {
+        final from = state.uri.queryParameters['from'];
+        if (from != null &&
+            from.startsWith('/') &&
+            !from.startsWith('//') &&
+            from != '/login' &&
+            !from.startsWith('/session')) {
+          return from;
+        }
+        return '/';
+      }
       if (auth == AuthStatus.authenticated && onLogin) return '/';
       return null;
     },
     routes: [
+      GoRoute(
+          path: '/session',
+          builder: (context, state) => const SessionLoadingPage()),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
