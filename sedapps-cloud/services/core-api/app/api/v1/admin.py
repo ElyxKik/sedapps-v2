@@ -571,7 +571,7 @@ def create_billing_plan(
         db.rollback()
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "a plan with this slug and billing interval already exists",
+            "this slug/interval or Chariow product ID is already linked to another plan",
         ) from exc
     db.refresh(plan)
     return {"plan": _plan_row(plan)}
@@ -593,7 +593,7 @@ def update_billing_plan(
         db.rollback()
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "a plan with this slug and billing interval already exists",
+            "this slug/interval or Chariow product ID is already linked to another plan",
         ) from exc
     db.refresh(plan)
     return {"plan": _plan_row(plan)}

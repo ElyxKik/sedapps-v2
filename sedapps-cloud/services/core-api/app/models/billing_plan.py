@@ -10,6 +10,7 @@ class BillingPlan(UUIDPKMixin, TimestampMixin, Base):
     __tablename__ = "billing_plans"
     __table_args__ = (
         UniqueConstraint("slug", "billing_interval", name="uq_billing_plan_slug_interval"),
+        UniqueConstraint("chariow_product_id", name="uq_billing_plan_chariow_product"),
     )
 
     slug: Mapped[str] = mapped_column(String(64), nullable=False)
