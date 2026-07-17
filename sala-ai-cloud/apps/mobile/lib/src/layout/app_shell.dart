@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/breakpoints.dart';
 import '../core/theme.dart';
 import '../features/agents/agent_state.dart';
+import '../features/account/data/account_summary_provider.dart';
 import '../features/account/data/billing_repository.dart';
 
 /// Controls the desktop navigation width from full-screen project workspaces.
@@ -98,6 +99,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final idx = _selectedIndex(loc);
     final isDesktop = Breakpoints.isDesktop(context);
     final expanded = ref.watch(sidebarExpandedProvider);
+    final account = ref.watch(accountSummaryProvider).asData?.value;
 
     if (!isDesktop) {
       return Scaffold(
@@ -106,6 +108,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         body: widget.child,
         bottomNavigationBar: _MobileBottomNav(
           currentIndex: idx,
+          accountName: account?.firstName ?? 'Compte',
           onTap: (i) => context.go(_items[i].path),
         ),
       );
@@ -118,6 +121,9 @@ class _AppShellState extends ConsumerState<AppShell> {
           _DesktopSidebar(
             expanded: expanded,
             currentIndex: idx,
+            accountName: account?.name ?? 'Mon compte',
+            accountEmail: account?.email ?? 'Chargement du profil…',
+            accountInitials: account?.initials ?? 'S',
             onToggle: () =>
                 ref.read(sidebarExpandedProvider.notifier).state = !expanded,
             onSelect: (i) => context.go(_items[i].path),
@@ -183,9 +189,14 @@ class _MobileAppBar extends ConsumerWidget implements PreferredSizeWidget {
 }
 
 class _MobileBottomNav extends StatelessWidget {
-  const _MobileBottomNav({required this.currentIndex, required this.onTap});
+  const _MobileBottomNav({
+    required this.currentIndex,
+    required this.accountName,
+    required this.onTap,
+  });
 
   final int currentIndex;
+  final String accountName;
   final ValueChanged<int> onTap;
 
   @override
@@ -194,11 +205,11 @@ class _MobileBottomNav extends StatelessWidget {
       selectedIndex: currentIndex.clamp(0, _items.length - 1),
       onDestinationSelected: onTap,
       destinations: [
-        for (final it in _items)
+        for (var i = 0; i < _items.length; i++)
           NavigationDestination(
-            icon: Icon(it.icon),
-            selectedIcon: Icon(it.selectedIcon),
-            label: it.label,
+            icon: Icon(_items[i].icon),
+            selectedIcon: Icon(_items[i].selectedIcon),
+            label: i == 3 ? accountName : _items[i].label,
           ),
       ],
     );
@@ -211,12 +222,18 @@ class _DesktopSidebar extends StatelessWidget {
   const _DesktopSidebar({
     required this.expanded,
     required this.currentIndex,
+    required this.accountName,
+    required this.accountEmail,
+    required this.accountInitials,
     required this.onToggle,
     required this.onSelect,
   });
 
   final bool expanded;
   final int currentIndex;
+  final String accountName;
+  final String accountEmail;
+  final String accountInitials;
   final VoidCallback onToggle;
   final ValueChanged<int> onSelect;
 
@@ -361,26 +378,36 @@ class _DesktopSidebar extends StatelessWidget {
                   ? MainAxisAlignment.center
                   : MainAxisAlignment.start,
               children: [
-                const _Avatar(),
+                _Avatar(initials: accountInitials),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 220),
                   child: collapsed
                       ? const SizedBox.shrink(
                           key: ValueKey('account-collapsed'))
-                      : const Padding(
+                      : Padding(
                           key: ValueKey('account-expanded'),
-                          padding: EdgeInsets.only(left: 12),
+                          padding: const EdgeInsets.only(left: 12),
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Mon compte',
-                                    style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700)),
-                                Text('Espace personnel',
-                                    style: TextStyle(
-                                        color: AppColors.textMuted,
-                                        fontSize: 11)),
+                                SizedBox(
+                                  width: 142,
+                                  child: Text(accountName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700)),
+                                ),
+                                SizedBox(
+                                  width: 142,
+                                  child: Text(accountEmail,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          color: AppColors.textMuted,
+                                          fontSize: 11)),
+                                ),
                               ]),
                         ),
                 ),
@@ -615,7 +642,9 @@ class _IconBadge extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar();
+  const _Avatar({required this.initials});
+
+  final String initials;
 
   @override
   Widget build(BuildContext context) {
@@ -627,8 +656,9 @@ class _Avatar extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       alignment: Alignment.center,
-      child: const Text('S',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+      child: Text(initials,
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w800)),
     );
   }
 }

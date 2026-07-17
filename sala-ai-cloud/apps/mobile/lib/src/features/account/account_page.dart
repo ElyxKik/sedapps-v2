@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../data/api_client.dart';
 import '../auth/auth_session.dart';
 import 'data/billing_repository.dart';
+import 'data/account_summary_provider.dart';
 import 'domain/credit_wallet.dart';
 import '../../data/localization_provider.dart';
 import '../../data/theme_provider.dart';
@@ -549,6 +550,7 @@ class _AccountPageState extends ConsumerState<_AccountPageContent> {
                           'org_name': orgNameCtrl.text.trim(),
                         });
                         _accountFuture = ref.read(apiClientProvider).account();
+                        ref.invalidate(accountSummaryProvider);
                         if (mounted) {
                           Navigator.of(context).pop();
                           this.setState(() {});
