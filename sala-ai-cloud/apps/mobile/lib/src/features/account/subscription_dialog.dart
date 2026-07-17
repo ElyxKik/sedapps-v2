@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:dio/dio.dart';
 
 import '../../core/theme.dart';
 import 'data/billing_repository.dart';
@@ -83,8 +84,9 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
 
   Future<void> _checkout(BillingPlan plan) async {
     final phone = _phoneController.text.trim();
-    if (phone.length < 5) {
-      setState(() => _error = 'Entre un numéro de téléphone valide.');
+    if (phone.length < 7 || phone.length > 15) {
+      setState(() => _error =
+          'Entre un numéro valide de 7 à 15 chiffres, sans le signe +.');
       return;
     }
     setState(() {
@@ -120,10 +122,23 @@ class _SubscriptionDialogState extends State<_SubscriptionDialog> {
   }
 
   String _friendlyError(Object error) {
-    final text = error.toString().replaceFirst('Exception: ', '');
-    if (text.contains('422')) {
-      return 'Ce plan n’est pas encore correctement lié à Chariow.';
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final detail = data['detail'];
+        if (detail is String && detail.trim().isNotEmpty) {
+          return detail.trim();
+        }
+        if (detail is Map && detail['message'] != null) {
+          return detail['message'].toString();
+        }
+      }
+      final nested = error.error;
+      if (nested != null && nested.toString().trim().isNotEmpty) {
+        return nested.toString().replaceFirst('Exception: ', '');
+      }
     }
+    final text = error.toString().replaceFirst('Exception: ', '');
     if (text.contains('503')) {
       return 'Le paiement est temporairement indisponible.';
     }

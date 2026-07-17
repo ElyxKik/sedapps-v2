@@ -5,6 +5,7 @@ import uuid
 from app.api.v1.billing import (
     _amount_cents,
     _apply_active_license,
+    _chariow_error_message,
     _downgrade_license,
     _technical_email,
     _tenant_from_technical_email,
@@ -83,4 +84,17 @@ def test_sale_amount_is_converted_to_integer_cents():
     assert _amount_cents({"amount": {"value": 79.20, "currency": "usd"}}) == (
         7920,
         "USD",
+    )
+
+
+def test_chariow_error_message_flattens_validation_errors():
+    message = _chariow_error_message(
+        {
+            "message": "Validation failed",
+            "errors": {"phone.number": ["The phone number is invalid."]},
+        }
+    )
+
+    assert message == (
+        "Validation failed · phone.number: The phone number is invalid."
     )

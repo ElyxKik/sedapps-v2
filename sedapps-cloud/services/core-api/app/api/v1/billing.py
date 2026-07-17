@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import logging
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -21,6 +22,7 @@ from app.models.user import User
 from app.services.invoices import InvoiceDeliveryError, send_payment_invoice
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class CheckoutIn(BaseModel):
@@ -61,9 +63,34 @@ def _chariow(method: str, path: str, *, payload: dict | None = None) -> dict:
     except ValueError:
         body = {}
     if response.status_code >= 400:
-        message = body.get("message") or "Chariow rejected the request"
+        message = _chariow_error_message(body)
+        logger.warning(
+            "Chariow request rejected: path=%s status=%s message=%s",
+            path,
+            response.status_code,
+            message,
+        )
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, message)
     return body.get("data") or {}
+
+
+def _chariow_error_message(body: dict) -> str:
+    message = body.get("message") or body.get("error")
+    if isinstance(message, dict):
+        message = message.get("message") or message.get("detail")
+    errors = body.get("errors")
+    details: list[str] = []
+    if isinstance(errors, dict):
+        for field, values in errors.items():
+            if isinstance(values, list):
+                details.extend(f"{field}: {value}" for value in values)
+            elif values:
+                details.append(f"{field}: {values}")
+    elif isinstance(errors, list):
+        details.extend(str(value) for value in errors if value)
+    parts = [str(message)] if message else []
+    parts.extend(details)
+    return " · ".join(parts) or "Chariow a refusé les informations de paiement."
 
 
 def _parse_date(value: Any) -> datetime | None:
