@@ -12,7 +12,6 @@ from app.models.credit_transaction import CreditTransaction
 from app.models.organization import Organization
 
 TOKENS_PER_CREDIT = 1000
-PLAN_QUOTAS = {"free": 500, "starter": 2500, "pro": 10000, "business": 50000}
 OPERATION_COSTS = {
     "site_generation": {"standard": 250, "premium": 500},
     "site_edit": {"standard": 10, "premium": 25},
@@ -70,7 +69,7 @@ def _reset_if_due(organization: Organization, now: datetime | None = None) -> bo
 
 
 def _quota(organization: Organization) -> int:
-    return PLAN_QUOTAS.get(organization.plan, PLAN_QUOTAS["free"])
+    return max(0, organization.ai_monthly_credit_allowance or 0)
 
 
 def _balance(organization: Organization) -> int:

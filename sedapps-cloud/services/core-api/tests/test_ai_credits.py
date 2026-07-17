@@ -62,6 +62,7 @@ def test_bonus_credits_extend_the_monthly_plan_balance():
         plan="free",
         ai_credits_used=480,
         ai_credits_reserved=10,
+        ai_monthly_credit_allowance=500,
         ai_bonus_credits=100,
         ai_credits_reset_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
     )
