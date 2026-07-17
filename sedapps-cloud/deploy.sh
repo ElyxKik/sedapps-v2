@@ -51,7 +51,8 @@ rsync -az --delete \
   docker compose -f '$COMPOSE_FILE' run --rm core-api alembic upgrade head
   docker compose -f '$COMPOSE_FILE' up -d --force-recreate --remove-orphans
   docker compose -f '$COMPOSE_FILE' ps
-  curl --fail --silent --show-error http://127.0.0.1:8000/health >/dev/null
+  curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 2 \
+    http://127.0.0.1:8000/health >/dev/null
   printf '%s\n' '$RELEASE_REVISION' > .deployed-revision
   docker image prune -f >/dev/null
   docker builder prune -f --filter 'until=24h' >/dev/null
