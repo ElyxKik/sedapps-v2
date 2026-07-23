@@ -23,4 +23,4 @@ def test_generation_and_structural_agents_use_gpt() -> None:
     ):
         client = get_client_for_agent(agent_name)
         assert isinstance(client, OpenAIClient)
-        assert client.model == "gpt-5.6"
+        assert client.model == "gpt-5.6-terra"

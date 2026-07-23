@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # ── OpenAI ────────────────────────────────────────────────────────────────────
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    OPENAI_MODEL: str = "gpt-5.6"
+    OPENAI_MODEL: str = "gpt-5.6-terra"
 
     # ── Anthropic (Claude) ────────────────────────────────────────────────────────
     ANTHROPIC_API_KEY: str = ""
