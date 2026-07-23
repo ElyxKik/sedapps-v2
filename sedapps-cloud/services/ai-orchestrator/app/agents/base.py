@@ -9,31 +9,39 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol
 
 from pydantic import BaseModel, Field
 
 from app.llm.base import LLMResponse, extract_json
-from app.llm.deepseek import DeepSeekClient, LLMError, get_default_client as _get_deepseek_client
+from app.llm.deepseek import LLMError, get_default_client as _get_deepseek_client
 from app.skills import compose_system_prompt
 
 
-def get_default_client() -> DeepSeekClient:
+class LLMClient(Protocol):
+    model: str
+
+    async def chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> LLMResponse: ...
+
+
+DEEPSEEK_TASK_AGENTS = frozenset(
+    {"onboarding_guide", "blog_writer", "component_editor", "project_chat"}
+)
+
+
+def get_client_for_agent(agent_name: str) -> LLMClient:
     """
-    Retourne le client LLM actif selon settings.LLM_PROVIDER.
-    - "deepseek"  → DeepSeekClient (défaut)
-    - "openai"    → OpenAIClient (GPT-4o)
-    - "anthropic" → OpenAIClient avec base_url Anthropic (Claude)
+    Route by responsibility instead of the legacy global provider.
+
+    DeepSeek conducts discovery and builds the onboarding brief. Once the user
+    starts generation, GPT takes over all structural and visual site work.
+    DeepSeek only keeps bounded follow-up tasks that do not redefine the site.
     """
-    from app.config import settings  # import local pour éviter les imports circulaires
-    provider = (settings.LLM_PROVIDER or "deepseek").lower()
-    if provider == "openai":
-        from app.llm.openai_client import get_openai_client
-        return get_openai_client()  # type: ignore[return-value]
-    if provider == "anthropic":
-        from app.llm.openai_client import get_anthropic_client
-        return get_anthropic_client()  # type: ignore[return-value]
-    return _get_deepseek_client()
+    if agent_name in DEEPSEEK_TASK_AGENTS:
+        return _get_deepseek_client()
+    from app.llm.openai_client import get_openai_client
+
+    return get_openai_client()
 
 log = logging.getLogger(__name__)
 
@@ -77,8 +85,8 @@ class BaseAgent:
         if getattr(cls, "name", None) and cls.name != "base":
             AGENT_REGISTRY[cls.name] = cls
 
-    def __init__(self, client: DeepSeekClient | None = None) -> None:
-        self.client = client or get_default_client()
+    def __init__(self, client: LLMClient | None = None) -> None:
+        self.client = client or get_client_for_agent(self.name)
 
     # ── to implement in subclasses ──────────────────────────
     def system_prompt(self, inp: AgentInput) -> str:
